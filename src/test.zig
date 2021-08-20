@@ -1,7 +1,10 @@
+const std = @import("std");
+const expect = std.testing.expect;
+const print = std.debug.print;
+const heap = std.heap;
+
 const Bitmap = @import("roaring.zig").Bitmap;
-const expect = @import("std").testing.expect;
-const print = @import("std").debug.print;
-const heap = @import("std").heap;
+const allocForFrozen = @import("roaring.zig").allocForFrozen;
 
 pub fn main() void {
 }
@@ -111,7 +114,7 @@ test "frozen" {
     a.add(37);
 
     const len = a.frozenSizeInBytes();
-    var buf = try heap.page_allocator.alloc(u8, len);
+    var buf = try allocForFrozen(heap.page_allocator, len);
     a.frozenSerialize(buf);
     const b = try Bitmap.frozenView(buf[0..]);
     try expect(a.eql(b));
@@ -173,3 +176,141 @@ test "min & max" {
     try expect(9 == a.maximum());
 }
 
+test "catch 'em all" {
+    var a = try Bitmap.create();
+    defer a.free();
+    var b = try Bitmap.createWithCapacity(100);
+    defer b.free();
+
+    var c = try Bitmap.fromRange(10, 20, 2);
+    defer c.free();
+
+    var vals = [_]u32{ 6, 2, 4 };
+    var d = try Bitmap.fromSlice(vals[0..]);
+    defer d.free();
+
+    try expect(d.getCopyOnWrite() == false);
+    d.setCopyOnWrite(true);
+    try expect(d.getCopyOnWrite() == true);
+
+    var e = try d.copy();
+    defer e.free();
+
+    _ = e.overwrite(c);
+
+    a.add(17);
+
+    b.addMany(vals[0..]);
+
+    try expect(b.addChecked(13));
+    try expect(!b.addChecked(13));
+
+    b.addRangeClosed(20, 30);
+    b.addRange(100, 200);
+
+    b.remove(100);
+    try expect(!b.removeChecked(200));
+    try expect(b.removeChecked(199));
+
+    b.removeMany(vals[0..]);
+
+    b.removeRange(110, 120);
+    b.removeRangeClosed(0, 1000);
+
+    b.clear();
+    try expect(!b.contains(100));
+    try expect(c.contains(12));
+
+    try expect(!c.containsRange(10, 20));
+
+    try expect(b.empty());
+
+    (try a._and(b)).free();
+    a._andInPlace(b);
+    _ = a._andCardinality(b);
+
+    _ = a.intersect(b);
+    _ = a.jaccardIndex(b);
+
+    (try a._or(b)).free();
+    a._orInPlace(b);
+    (try Bitmap._orMany(&[_]*Bitmap{b, c, d})).free();
+    (try Bitmap._orManyHeap(&[_]*Bitmap{b, c, d})).free();
+    _ = a._orCardinality(b);
+
+
+    (try a._xor(b)).free();
+    a._xorInPlace(b);
+    _ = a._xorCardinality(b);
+    (try Bitmap._xorMany(&[_]*Bitmap{b, c, d})).free();
+
+    (try a._andnot(b)).free();
+    a._andnotInPlace(b);
+    _ = a._andnotCardinality(b);
+
+    (try a.flip(0, 10)).free();
+    a.flipInPlace(0, 10);
+
+    (try a._orLazy(b, false)).free();
+    a._orLazyInPlace(b, false);
+    (try a._xorLazy(b)).free();
+    a._xorLazyInPlace(b);
+    a.repairAfterLazy();
+
+
+    var buf: [1024]u8 align(32) = undefined;
+    try expect(c.sizeInBytes() <= buf.len);
+    var len = c.serialize(buf[0..]);
+    var cPrime = try Bitmap.deserialize(buf[0..len]);
+    cPrime.free();
+
+    try expect(c.portableSizeInBytes() <= buf.len);
+    len = c.portableSerialize(buf[0..]);
+    cPrime = try Bitmap.portableDeserialize(buf[0..len]);
+    cPrime.free();
+
+    cPrime = try Bitmap.portableDeserializeSafe(buf[0..len]);
+    cPrime.free();
+
+    try expect(Bitmap.portableDeserializeSize(buf[0..]) < buf.len);
+
+
+    len = c.frozenSizeInBytes();
+    try expect(len < buf.len);
+    c.frozenSerialize(buf[0..]);
+    var view : *const Bitmap = try Bitmap.frozenView(buf[0..len]);
+    try expect(c.eql(view));
+
+    var f = try Bitmap.fromRange(10, 50, 1);
+    defer f.free();
+    var g = try Bitmap.fromRange(20, 40, 1);
+    defer g.free();
+    try expect(g.isSubset(f));
+    try expect(g.isStrictSubset(f));
+
+    _ = a.cardinality();
+    _ = a.cardinalityRange(0, 100);
+    _ = a.minimum();
+    _ = a.maximum();
+
+    var el: u32 = 0;
+    _ = a.select(3, &el);
+    _ = a.rank(3);
+
+    a.printfDescribe();
+    a.printf();
+
+    _ = a.removeRunCompression();
+    _ = a.runOptimize();
+    _ = a.shrinkToFit();
+
+    var it = c.iterator();
+    while (it.hasValue()) {
+        _ = it.currentValue();
+        _ = it.next();
+        _ = it.previous();
+        _ = it.next();
+    }
+    _ = it.moveEqualOrLarger(10);
+    _ = it.read(vals[0..]);
+}

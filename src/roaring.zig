@@ -13,7 +13,7 @@
 usingnamespace @cImport({
     @cInclude("roaring.h");
 });
-const debug = @import("std").debug;
+const std = @import("std");
 
 ///
 pub const RoaringError = error {
@@ -22,7 +22,7 @@ pub const RoaringError = error {
     ///
     frozen_view_failed,
     ///
-    deserializeFailed,
+    deserialize_failed,
 };
 
 // Ensure 1:1 equivalence of roaring_bitmap_t and Bitmap
@@ -162,13 +162,13 @@ pub const Bitmap = extern struct {
     }
 
     /// Add all values in range [min, max]
-    pub fn addRangeClosed(self: *Bitmap, start: u32, end: u32) bool {
-        return roaring_bitmap_add_range_closed(conv(self), start, end);
+    pub fn addRangeClosed(self: *Bitmap, start: u32, end: u32) void {
+        roaring_bitmap_add_range_closed(conv(self), start, end);
     }
 
     /// Add all values in range [min, max)
-    pub fn addRange(self: *Bitmap, start: u64, end: u64) bool {
-        return roaring_bitmap_add_range(conv(self), start, end);
+    pub fn addRange(self: *Bitmap, start: u64, end: u64) void {
+        roaring_bitmap_add_range(conv(self), start, end);
     }
 
     ///
@@ -246,28 +246,13 @@ pub const Bitmap = extern struct {
     }
 
     ///
-    pub fn _orCardinality(a: *const Bitmap, b: *const Bitmap) usize {
-        return roaring_bitmap_or_cardinality(conv(a), conv(b));
-    }
-
-    ///
-    pub fn _andnotCardinality(a: *const Bitmap, b: *const Bitmap) usize {
-        return roaring_bitmap_andnot_cardinality(conv(a), conv(b));
-    }
-
-    ///
-    pub fn _xorCardinality(a: *const Bitmap, b: *const Bitmap) usize {
-        return roaring_bitmap_xor_cardinality(conv(a), conv(b));
-    }
-
-    ///
     pub fn _or(a: *const Bitmap, b: *const Bitmap) RoaringError!*Bitmap {
         return checkNewBitmap( roaring_bitmap_or(conv(a), conv(b)) );
     }
 
     ///
-    pub fn _orInPlace(a: *const Bitmap, b: *const Bitmap) void {
-        return conv(roaring_bitmap_or_inplace(conv(a), conv(b)));
+    pub fn _orInPlace(a: *Bitmap, b: *const Bitmap) void {
+        roaring_bitmap_or_inplace(conv(a), conv(b));
     }
 
     ///
@@ -287,13 +272,24 @@ pub const Bitmap = extern struct {
     }
 
     ///
+    pub fn _orCardinality(a: *const Bitmap, b: *const Bitmap) usize {
+        return roaring_bitmap_or_cardinality(conv(a), conv(b));
+    }
+
+
+    ///
     pub fn _xor(a: *const Bitmap, b: *const Bitmap) RoaringError!*Bitmap {
         return checkNewBitmap( roaring_bitmap_xor(conv(a), conv(b)) );
     }
 
     ///
-    pub fn _xorInPlace(a: *const Bitmap, b: *const Bitmap) void {
-        return conv(roaring_bitmap_xor_inplace(conv(a), conv(b)));
+    pub fn _xorInPlace(a: *Bitmap, b: *const Bitmap) void {
+        roaring_bitmap_xor_inplace(conv(a), conv(b));
+    }
+
+    ///
+    pub fn _xorCardinality(a: *const Bitmap, b: *const Bitmap) usize {
+        return roaring_bitmap_xor_cardinality(conv(a), conv(b));
     }
 
     ///
@@ -310,8 +306,13 @@ pub const Bitmap = extern struct {
     }
 
     ///
-    pub fn _andnotInPlace(a: *const Bitmap, b: *const Bitmap) void {
-        return conv(roaring_bitmap_andnot_inplace(conv(a), conv(b)));
+    pub fn _andnotInPlace(a: *Bitmap, b: *const Bitmap) void {
+        roaring_bitmap_andnot_inplace(conv(a), conv(b));
+    }
+
+    ///
+    pub fn _andnotCardinality(a: *const Bitmap, b: *const Bitmap) usize {
+        return roaring_bitmap_andnot_cardinality(conv(a), conv(b));
     }
 
     ///
@@ -413,7 +414,7 @@ pub const Bitmap = extern struct {
         if (roaring_bitmap_portable_deserialize_safe(buf.ptr, buf.len)) |b| {
             return conv(b);
         } else {
-            return RoaringError.deserializeFailed;
+            return RoaringError.deserialize_failed;
         }
     }
 
@@ -439,9 +440,13 @@ pub const Bitmap = extern struct {
         roaring_bitmap_frozen_serialize(conv(self), buf.ptr);
     }
 
-    ///
-    pub fn frozenView(buf: []u8) RoaringError ! *const Bitmap {
-        return conv(roaring_bitmap_frozen_view(buf.ptr, buf.len));
+    /// Returns a read-only Bitmap, backed by the bytes in `buf`.  You must not
+    ///  free or alter the bytes in `buf` while the view bitmap is alive.
+    /// `buf` must be 32-byte aligned and exactly the length that was reported
+    ///  by `frozenSizeInBytes`.
+    pub fn frozenView(buf: []align(32)u8) RoaringError ! *const Bitmap {
+        return conv( roaring_bitmap_frozen_view(buf.ptr, buf.len)
+                     orelse return RoaringError.frozen_view_failed );
     }
 
     //============================== Comparison ==============================//
@@ -450,12 +455,13 @@ pub const Bitmap = extern struct {
         return roaring_bitmap_equals(conv(a), conv(b));
     }
 
-    ///
+    /// Return true if all the elements of r1 are also in r2.
     pub fn isSubset(a: *const Bitmap, b: *const Bitmap) bool {
         return roaring_bitmap_is_subset(conv(a), conv(b));
     }
 
-    ///
+    /// Return true if all the elements of r1 are also in r2, and r2 is strictly
+    ///  greater than r1.
     pub fn isStrictSubset(a: *const Bitmap, b: *const Bitmap) bool {
         return roaring_bitmap_is_strict_subset(conv(a), conv(b));
     }
@@ -468,7 +474,7 @@ pub const Bitmap = extern struct {
     }
 
     /// Returns the number of elements in the range [range_start, range_end).
-    pub fn cardinalityRange(self: *const Bitmap, start: u64, end: u64) bool {
+    pub fn cardinalityRange(self: *const Bitmap, start: u64, end: u64) u64 {
         return roaring_bitmap_range_cardinality(conv(self), start, end);
     }
 
@@ -490,14 +496,13 @@ pub const Bitmap = extern struct {
         return roaring_bitmap_select(conv(self), rnk, element);
     }
 
-    /// roaring_bitmap_rank returns the number of integers that are smaller or equal
-    /// to x. Thus if x is the first element, this function will return 1. If
+    /// Returns the number of integers that are smaller or equal to x.
+    /// Thus if x is the first element, this function will return 1. If
     /// x is smaller than the smallest element, this function will return 0.
     ///
-    /// The indexing convention differs between roaring_bitmap_select and
-    /// roaring_bitmap_rank: roaring_bitmap_select refers to the smallest value
-    /// as having index 0, whereas roaring_bitmap_rank returns 1 when ranking
-    /// the smallest value.
+    /// The indexing convention differs between `select` and `rank`:
+    ///  `select` refers to the smallest value as having index 0, whereas `rank`
+    ///   returns 1 when ranking the smallest value.
     pub fn rank(self: *const Bitmap, x: u32) u64 {
         return roaring_bitmap_rank(conv(self), x);
     }
@@ -525,7 +530,7 @@ pub const Bitmap = extern struct {
     ///
     /// Returns true if the result has at least one run container.
     /// Additional savings might be possible by calling `shrinkToFit()`.
-    pub fn runOptimize(self: *Bitmap) usize {
+    pub fn runOptimize(self: *Bitmap) bool {
         return roaring_bitmap_run_optimize(conv(self));
     }
 
@@ -568,7 +573,7 @@ pub const Bitmap = extern struct {
 
         ///
         pub fn read(self: *Iterator, buf: []u32) u32 {
-            return roaring_read_uint32_iterator(&self.it,
+            return roaring_read_uint32_iterator(&self.i,
                                                 buf.ptr, @intCast(u32, buf.len));
         }
     };
@@ -580,3 +585,14 @@ pub const Bitmap = extern struct {
         return ret;
     }
 };
+
+/// Helper function to get properly aligned and sized buffers for
+///  frozenSerialize/frozenView
+pub fn allocForFrozen(allocator: *std.mem.Allocator, len: usize) ![]align(32)u8 {
+    // The buffer must be 32-byte aligned and sized exactly
+    return allocator.allocAdvanced(u8,
+        32, // alignment
+        len,
+        std.mem.Allocator.Exact.exact
+    );
+}
