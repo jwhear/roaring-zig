@@ -6,9 +6,6 @@ const heap = std.heap;
 const Bitmap = @import("roaring.zig").Bitmap;
 const allocForFrozen = @import("roaring.zig").allocForFrozen;
 
-pub fn main() void {
-}
-
 test "create + free" {
     var b = try Bitmap.create();
     b.free();
