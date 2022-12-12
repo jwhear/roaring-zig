@@ -1,0 +1,6 @@
+id: 6ok85gktcmgr66zkksi5oj1it91fvott6b338d2xvhyhyk18
+name: roaring-zig
+main: src/roaring.zig
+license: MIT
+description: Wrapper for the CRoaring (Roaring Bitmaps) library
+dependencies:
