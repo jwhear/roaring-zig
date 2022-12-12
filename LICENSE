@@ -19,3 +19,7 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+The underlying CRoaring library is dual licensed under the Apache and MIT licenses,
+see https://github.com/RoaringBitmap/CRoaring/blob/master/LICENSE.  This license
+is also included at the top of the croaring source files.
