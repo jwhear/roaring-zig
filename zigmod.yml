@@ -3,4 +3,10 @@ name: roaring
 main: src/roaring.zig
 license: MIT
 description: Wrapper for the CRoaring (Roaring Bitmaps) library
+c_include_dirs:
+    - croaring
+c_source_files:
+    - croaring/roaring.c
+
 dependencies:
+    - src: system_lib c
