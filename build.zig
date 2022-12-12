@@ -12,7 +12,7 @@ pub fn build(b: *Builder) void {
     var main_tests = b.addTest("src/test.zig");
     main_tests.setBuildMode(mode);
     main_tests.linkLibrary(lib);
-    main_tests.addIncludeDir("croaring");
+    main_tests.addIncludePath("croaring");
 
     const test_step = b.step("test", "Run library tests");
     test_step.dependOn(&main_tests.step);
@@ -24,6 +24,6 @@ pub fn add(b: *Builder, mode: std.builtin.Mode) *std.build.LibExeObjStep {
     lib.setBuildMode(mode);
     lib.linkLibC();
     lib.addCSourceFile("croaring/roaring.c", &[_][]const u8{""});
-    lib.addIncludeDir("croaring");
+    lib.addIncludePath("croaring");
     return lib;
 }

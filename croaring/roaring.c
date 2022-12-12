@@ -1,8 +1,12 @@
 // !!! DO NOT EDIT - THIS IS AN AUTO-GENERATED FILE !!!
-// Created by amalgamation.sh on Thu 15 Apr 2021 11:00:31 EDT
+// Created by amalgamation.sh on Wed 20 Jul 2022 16:25:25 EDT
 
 /*
- * Copyright 2016-2020 The CRoaring authors
+ * The CRoaring project is under a dual license (Apache/MIT).
+ * Users of the library may choose one or the other license.
+ */
+/*
+ * Copyright 2016-2022 The CRoaring authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +21,37 @@
  * limitations under the License.
  *
  * SPDX-License-Identifier: Apache-2.0
+ */
+/*
+ * MIT License
+ *
+ * Copyright 2016-2022 The CRoaring authors
+ *
+ * Permission is hereby granted, free of charge, to any
+ * person obtaining a copy of this software and associated
+ * documentation files (the "Software"), to deal in the
+ * Software without restriction, including without
+ * limitation the rights to use, copy, modify, merge,
+ * publish, distribute, sublicense, and/or sell copies of
+ * the Software, and to permit persons to whom the Software
+ * is furnished to do so, subject to the following
+ * conditions:
+ *
+ * The above copyright notice and this permission notice
+ * shall be included in all copies or substantial portions
+ * of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ * ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+ * TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+ * PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+ * SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+ * CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+ * OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+ * IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ * DEALINGS IN THE SOFTWARE
+ *
+ * SPDX-License-Identifier: MIT
  */
 
 #include "roaring.h"
@@ -238,7 +273,7 @@ static inline bool croaring_avx2() {
 }
 #else
 static inline bool croaring_avx2() {
-  return  (dynamic_croaring_detect_supported_architectures() & CROARING_AVX2) == CROARING_AVX2;
+  return  (croaring_detect_supported_architectures() & CROARING_AVX2) == CROARING_AVX2;
 }
 #endif
 
@@ -267,7 +302,7 @@ static inline uint32_t croaring_detect_supported_architectures() {
 #define INCLUDE_PORTABILITY_H_
 
 #ifndef _GNU_SOURCE
-#define _GNU_SOURCE
+#define _GNU_SOURCE 1
 #endif // _GNU_SOURCE
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS 1
@@ -390,15 +425,15 @@ inline int __builtin_clzll(unsigned long long input_num) {
 
 /* software implementation avoids POPCNT */
 /*static inline int __builtin_popcountll(unsigned long long input_num) {
-	const uint64_t m1 = 0x5555555555555555; //binary: 0101...
-	const uint64_t m2 = 0x3333333333333333; //binary: 00110011..
-	const uint64_t m4 = 0x0f0f0f0f0f0f0f0f; //binary:  4 zeros,  4 ones ...
-	const uint64_t h01 = 0x0101010101010101; //the sum of 256 to the power of 0,1,2,3...
+  const uint64_t m1 = 0x5555555555555555; //binary: 0101...
+  const uint64_t m2 = 0x3333333333333333; //binary: 00110011..
+  const uint64_t m4 = 0x0f0f0f0f0f0f0f0f; //binary:  4 zeros,  4 ones ...
+  const uint64_t h01 = 0x0101010101010101; //the sum of 256 to the power of 0,1,2,3...
 
-	input_num -= (input_num >> 1) & m1;
-	input_num = (input_num & m2) + ((input_num >> 2) & m2);
-	input_num = (input_num + (input_num >> 4)) & m4;
-	return (input_num * h01) >> 56;
+  input_num -= (input_num >> 1) & m1;
+  input_num = (input_num & m2) + ((input_num >> 2) & m2);
+  input_num = (input_num + (input_num >> 4)) & m4;
+  return (input_num * h01) >> 56;
 }*/
 
 /* Use #define so this is effective even under /Ob0 (no inline) */
@@ -406,36 +441,6 @@ inline int __builtin_clzll(unsigned long long input_num) {
 #endif
 
 #endif
-
-// without the following, we get lots of warnings about posix_memalign
-#ifndef __cplusplus
-extern int posix_memalign(void **__memptr, size_t __alignment, size_t __size);
-#endif  //__cplusplus // C++ does not have a well defined signature
-
-// portable version of  posix_memalign
-static inline void *roaring_bitmap_aligned_malloc(size_t alignment, size_t size) {
-    void *p;
-#ifdef _MSC_VER
-    p = _aligned_malloc(size, alignment);
-#elif defined(__MINGW32__) || defined(__MINGW64__)
-    p = __mingw_aligned_malloc(size, alignment);
-#else
-    // somehow, if this is used before including "x86intrin.h", it creates an
-    // implicit defined warning.
-    if (posix_memalign(&p, alignment, size) != 0) return NULL;
-#endif
-    return p;
-}
-
-static inline void roaring_bitmap_aligned_free(void *memblock) {
-#ifdef _MSC_VER
-    _aligned_free(memblock);
-#elif defined(__MINGW32__) || defined(__MINGW64__)
-    __mingw_aligned_free(memblock);
-#else
-    free(memblock);
-#endif
-}
 
 #if defined(_MSC_VER)
 #define ALIGNED(x) __declspec(align(x))
@@ -453,11 +458,31 @@ static inline void roaring_bitmap_aligned_free(void *memblock) {
 
 #define IS_BIG_ENDIAN (*(uint16_t *)"\0\xff" < 0x100)
 
+static inline int hammingbackup(uint64_t x) {
+  uint64_t c1 = UINT64_C(0x5555555555555555);
+  uint64_t c2 = UINT64_C(0x3333333333333333);
+  uint64_t c4 = UINT64_C(0x0F0F0F0F0F0F0F0F);
+  x -= (x >> 1) & c1;
+  x = (( x >> 2) & c2) + (x & c2); x=(x +(x>>4))&c4;
+  x *= UINT64_C(0x0101010101010101);
+  return x >> 56;
+}
+
 static inline int hamming(uint64_t x) {
 #if defined(_WIN64) && defined(_MSC_VER) && !defined(__clang__)
+#ifdef _M_ARM64
+  return hammingbackup(x);
+  // (int) _CountOneBits64(x); is unavailable
+#else  // _M_ARM64
   return (int) __popcnt64(x);
+#endif // _M_ARM64
 #elif defined(_WIN32) && defined(_MSC_VER) && !defined(__clang__)
+#ifdef _M_ARM
+  return hammingbackup(x);
+  // _CountOneBits is unavailable
+#else // _M_ARM
     return (int) __popcnt(( unsigned int)x) + (int)  __popcnt(( unsigned int)(x>>32));
+#endif // _M_ARM
 #else
     return __builtin_popcountll(x);
 #endif
@@ -489,7 +514,7 @@ static inline int hamming(uint64_t x) {
 //
 // On 32-bit ARM, we would have smaller registers.
 //
-// The simdjson users should still have the fallback kernel. It is
+// The library should still have the fallback kernel. It is
 // slower, but it should run everywhere.
 
 //
@@ -1956,6 +1981,10 @@ inline bool array_container_contains(const array_container_t *arr,
 
 }
 
+void array_container_offset(const array_container_t *c,
+                            container_t **loc, container_t **hic,
+                            uint16_t offset);
+
 //* Check whether a range of values from range_start (included) to range_end (excluded) is present. */
 static inline bool array_container_contains_range(const array_container_t *arr,
                                                     uint32_t range_start, uint32_t range_end) {
@@ -2285,7 +2314,7 @@ inline bool bitset_container_contains(const bitset_container_t *bitset,
 * is present in `bitset'.  Calls bitset_container_get_all.
 */
 static inline bool bitset_container_contains_range(const bitset_container_t *bitset,
-					uint32_t pos_start, uint32_t pos_end) {
+          uint32_t pos_start, uint32_t pos_end) {
     return bitset_container_get_range(bitset, pos_start, pos_end);
 }
 
@@ -2441,6 +2470,9 @@ int bitset_container_andnot_nocard(const bitset_container_t *src_1,
                                    const bitset_container_t *src_2,
                                    bitset_container_t *dst);
 
+void bitset_container_offset(const bitset_container_t *c,
+                             container_t **loc, container_t **hic,
+                             uint16_t offset);
 /*
  * Write out the 16-bit integers contained in this container as a list of 32-bit
  * integers using base
@@ -3098,6 +3130,10 @@ bool run_container_select(const run_container_t *container,
 
 void run_container_andnot(const run_container_t *src_1,
                           const run_container_t *src_2, run_container_t *dst);
+
+void run_container_offset(const run_container_t *c,
+                         container_t **loc, container_t **hic,
+                         uint16_t offset);
 
 /* Returns the smallest value (assumes not empty) */
 inline uint16_t run_container_minimum(const run_container_t *run) {
@@ -5677,6 +5713,43 @@ static inline container_t* container_xor(
             assert(false);
             __builtin_unreachable();
             return NULL;  // unreached
+    }
+}
+
+/* Applies an offset to the non-empty container 'c'.
+ * The results are stored in new containers returned via 'lo' and 'hi', for the
+ * low and high halves of the result (where the low half matches the original key
+ * and the high one corresponds to values for the following key).
+ * Either one of 'lo' and 'hi' are allowed to be 'NULL', but not both.
+ * Whenever one of them is not 'NULL', it should point to a 'NULL' container.
+ * Whenever one of them is 'NULL' the shifted elements for that part will not be
+ * computed.
+ * If either of the resulting containers turns out to be empty, the pointed
+ * container will remain 'NULL'.
+ */
+static inline void container_add_offset(const container_t *c, uint8_t type,
+                                        container_t **lo, container_t **hi,
+                                        uint16_t offset) {
+    assert(offset != 0);
+    assert(container_nonzero_cardinality(c, type));
+    assert(lo != NULL || hi != NULL);
+    assert(lo == NULL || *lo == NULL);
+    assert(hi == NULL || *hi == NULL);
+
+    switch (type) {
+    case BITSET_CONTAINER_TYPE:
+        bitset_container_offset(const_CAST_bitset(c), lo, hi, offset);
+        break;
+    case ARRAY_CONTAINER_TYPE:
+        array_container_offset(const_CAST_array(c), lo, hi, offset);
+        break;
+    case RUN_CONTAINER_TYPE:
+        run_container_offset(const_CAST_run(c), lo, hi, offset);
+        break;
+    default:
+        assert(false);
+        __builtin_unreachable();
+        break;
     }
 }
 
@@ -8956,7 +9029,7 @@ size_t fast_union_uint16(const uint16_t *set_1, size_t size_1, const uint16_t *s
 }
 #ifdef CROARING_IS_X64
 CROARING_TARGET_AVX2
-bool _avx2_memequals(const void *s1, const void *s2, size_t n) {
+static inline bool _avx2_memequals(const void *s1, const void *s2, size_t n) {
     const uint8_t *ptr1 = (const uint8_t *)s1;
     const uint8_t *ptr2 = (const uint8_t *)s2;
     const uint8_t *end1 = ptr1 + n;
@@ -9757,7 +9830,7 @@ size_t bitset_extract_setbits_uint16(const uint64_t *words, size_t length,
 
 #if defined(CROARING_ASMBITMANIPOPTIMIZATION) && defined(CROARING_IS_X64)
 
-uint64_t _asm_bitset_set_list_withcard(uint64_t *words, uint64_t card,
+static inline uint64_t _asm_bitset_set_list_withcard(uint64_t *words, uint64_t card,
                                   const uint16_t *list, uint64_t length) {
     uint64_t offset, load, pos;
     uint64_t shift = 6;
@@ -9782,7 +9855,7 @@ uint64_t _asm_bitset_set_list_withcard(uint64_t *words, uint64_t card,
     return card;
 }
 
-void _asm_bitset_set_list(uint64_t *words, const uint16_t *list, uint64_t length) {
+static inline void _asm_bitset_set_list(uint64_t *words, const uint16_t *list, uint64_t length) {
     uint64_t pos;
     const uint16_t *end = list + length;
 
@@ -9837,7 +9910,7 @@ void _asm_bitset_set_list(uint64_t *words, const uint16_t *list, uint64_t length
     }
 }
 
-uint64_t _asm_bitset_clear_list(uint64_t *words, uint64_t card, const uint16_t *list,
+static inline uint64_t _asm_bitset_clear_list(uint64_t *words, uint64_t card, const uint16_t *list,
                            uint64_t length) {
     uint64_t offset, load, pos;
     uint64_t shift = 6;
@@ -9863,7 +9936,7 @@ uint64_t _asm_bitset_clear_list(uint64_t *words, uint64_t card, const uint16_t *
     return card;
 }
 
-uint64_t _scalar_bitset_clear_list(uint64_t *words, uint64_t card, const uint16_t *list,
+static inline uint64_t _scalar_bitset_clear_list(uint64_t *words, uint64_t card, const uint16_t *list,
                            uint64_t length) {
     uint64_t offset, load, newload, pos, index;
     const uint16_t *end = list + length;
@@ -9880,7 +9953,7 @@ uint64_t _scalar_bitset_clear_list(uint64_t *words, uint64_t card, const uint16_
     return card;
 }
 
-uint64_t _scalar_bitset_set_list_withcard(uint64_t *words, uint64_t card,
+static inline uint64_t _scalar_bitset_set_list_withcard(uint64_t *words, uint64_t card,
                                   const uint16_t *list, uint64_t length) {
     uint64_t offset, load, newload, pos, index;
     const uint16_t *end = list + length;
@@ -9897,7 +9970,7 @@ uint64_t _scalar_bitset_set_list_withcard(uint64_t *words, uint64_t card,
     return card;
 }
 
-void _scalar_bitset_set_list(uint64_t *words, const uint16_t *list, uint64_t length) {
+static inline void _scalar_bitset_set_list(uint64_t *words, const uint16_t *list, uint64_t length) {
     uint64_t offset, load, newload, pos, index;
     const uint16_t *end = list + length;
     while (list != end) {
@@ -10060,16 +10133,16 @@ extern inline bool array_container_full(const array_container_t *array);
 array_container_t *array_container_create_given_capacity(int32_t size) {
     array_container_t *container;
 
-    if ((container = (array_container_t *)malloc(sizeof(array_container_t))) ==
+    if ((container = (array_container_t *)roaring_malloc(sizeof(array_container_t))) ==
         NULL) {
         return NULL;
     }
 
     if( size <= 0 ) { // we don't want to rely on malloc(0)
         container->array = NULL;
-    } else if ((container->array = (uint16_t *)malloc(sizeof(uint16_t) * size)) ==
+    } else if ((container->array = (uint16_t *)roaring_malloc(sizeof(uint16_t) * size)) ==
         NULL) {
-        free(container);
+        roaring_free(container);
         return NULL;
     }
 
@@ -10109,18 +10182,45 @@ array_container_t *array_container_clone(const array_container_t *src) {
     return newcontainer;
 }
 
+void array_container_offset(const array_container_t *c,
+                            container_t **loc, container_t **hic,
+                            uint16_t offset) {
+    array_container_t *lo = NULL, *hi = NULL;
+    int top, lo_cap, hi_cap;
+
+    top = (1 << 16) - offset;
+
+    lo_cap = count_less(c->array, c->cardinality, top);
+    if (loc && lo_cap) {
+        lo = array_container_create_given_capacity(lo_cap);
+        for (int i = 0; i < lo_cap; ++i) {
+            array_container_add(lo, c->array[i] + offset);
+        }
+        *loc = (container_t*)lo;
+    }
+
+    hi_cap = c->cardinality - lo_cap;
+    if (hic && hi_cap) {
+        hi = array_container_create_given_capacity(hi_cap);
+        for (int i = lo_cap; i < c->cardinality; ++i) {
+            array_container_add(hi, c->array[i] + offset);
+        }
+        *hic = (container_t*)hi;
+    }
+}
+
 int array_container_shrink_to_fit(array_container_t *src) {
     if (src->cardinality == src->capacity) return 0;  // nothing to do
     int savings = src->capacity - src->cardinality;
     src->capacity = src->cardinality;
     if( src->capacity == 0) { // we do not want to rely on realloc for zero allocs
-      free(src->array);
+      roaring_free(src->array);
       src->array = NULL;
     } else {
       uint16_t *oldarray = src->array;
       src->array =
-        (uint16_t *)realloc(oldarray, src->capacity * sizeof(uint16_t));
-      if (src->array == NULL) free(oldarray);  // should never happen?
+        (uint16_t *)roaring_realloc(oldarray, src->capacity * sizeof(uint16_t));
+      if (src->array == NULL) roaring_free(oldarray);  // should never happen?
     }
     return savings;
 }
@@ -10128,10 +10228,10 @@ int array_container_shrink_to_fit(array_container_t *src) {
 /* Free memory. */
 void array_container_free(array_container_t *arr) {
     if(arr->array != NULL) {// Jon Strabala reports that some tools complain otherwise
-      free(arr->array);
+        roaring_free(arr->array);
       arr->array = NULL; // pedantic
     }
-    free(arr);
+    roaring_free(arr);
 }
 
 static inline int32_t grow_capacity(int32_t capacity) {
@@ -10156,14 +10256,14 @@ void array_container_grow(array_container_t *container, int32_t min,
 
     if (preserve) {
         container->array =
-            (uint16_t *)realloc(array, new_capacity * sizeof(uint16_t));
-        if (container->array == NULL) free(array);
+            (uint16_t *)roaring_realloc(array, new_capacity * sizeof(uint16_t));
+        if (container->array == NULL) roaring_free(array);
     } else {
         // Jon Strabala reports that some tools complain otherwise
         if (array != NULL) {
-          free(array);
+          roaring_free(array);
         }
-        container->array = (uint16_t *)malloc(new_capacity * sizeof(uint16_t));
+        container->array = (uint16_t *)roaring_malloc(new_capacity * sizeof(uint16_t));
     }
 
     //  handle the case where realloc fails
@@ -10538,16 +10638,16 @@ void bitset_container_set_all(bitset_container_t *bitset) {
 /* Create a new bitset. Return NULL in case of failure. */
 bitset_container_t *bitset_container_create(void) {
     bitset_container_t *bitset =
-        (bitset_container_t *)malloc(sizeof(bitset_container_t));
+        (bitset_container_t *)roaring_malloc(sizeof(bitset_container_t));
 
     if (!bitset) {
         return NULL;
     }
     // sizeof(__m256i) == 32
-    bitset->words = (uint64_t *)roaring_bitmap_aligned_malloc(
+    bitset->words = (uint64_t *)roaring_aligned_malloc(
         32, sizeof(uint64_t) * BITSET_CONTAINER_SIZE_IN_WORDS);
     if (!bitset->words) {
-        free(bitset);
+        roaring_free(bitset);
         return NULL;
     }
     bitset_container_clear(bitset);
@@ -10593,31 +10693,95 @@ void bitset_container_add_from_range(bitset_container_t *bitset, uint32_t min,
 /* Free memory. */
 void bitset_container_free(bitset_container_t *bitset) {
     if(bitset->words != NULL) {// Jon Strabala reports that some tools complain otherwise
-      roaring_bitmap_aligned_free(bitset->words);
+      roaring_aligned_free(bitset->words);
       bitset->words = NULL; // pedantic
     }
-    free(bitset);
+    roaring_free(bitset);
 }
 
 /* duplicate container. */
 bitset_container_t *bitset_container_clone(const bitset_container_t *src) {
     bitset_container_t *bitset =
-        (bitset_container_t *)malloc(sizeof(bitset_container_t));
+        (bitset_container_t *)roaring_malloc(sizeof(bitset_container_t));
 
     if (!bitset) {
         return NULL;
     }
     // sizeof(__m256i) == 32
-    bitset->words = (uint64_t *)roaring_bitmap_aligned_malloc(
+    bitset->words = (uint64_t *)roaring_aligned_malloc(
         32, sizeof(uint64_t) * BITSET_CONTAINER_SIZE_IN_WORDS);
     if (!bitset->words) {
-        free(bitset);
+        roaring_free(bitset);
         return NULL;
     }
     bitset->cardinality = src->cardinality;
     memcpy(bitset->words, src->words,
            sizeof(uint64_t) * BITSET_CONTAINER_SIZE_IN_WORDS);
     return bitset;
+}
+
+void bitset_container_offset(const bitset_container_t *c,
+                             container_t **loc, container_t **hic,
+                             uint16_t offset) {
+    bitset_container_t *bc = NULL;
+    uint64_t val;
+    uint16_t b, i, end;
+
+    b = offset >> 6;
+    i = offset % 64;
+    end = 1024 - b;
+
+    if (loc != NULL) {
+        bc = bitset_container_create();
+        if (i == 0) {
+            memcpy(bc->words+b, c->words, 8*end);
+        } else {
+            bc->words[b] = c->words[0] << i;
+            for (uint32_t k = 1; k < end; ++k) {
+                val = c->words[k] << i;
+                val |= c->words[k-1] >> (64 - i);
+                bc->words[b+k] = val;
+            }
+        }
+
+        bc->cardinality = bitset_container_compute_cardinality(bc);
+        if (bc->cardinality != 0) {
+            *loc = bc;
+        }
+        if (bc->cardinality == c->cardinality) {
+            return;
+        }
+    }
+
+    if (hic == NULL) {
+        // Both hic and loc can't be NULL, so bc is never NULL here
+        if (bc->cardinality == 0) {
+            bitset_container_free(bc);
+	}
+        return;
+    }
+
+    if (bc == NULL || bc->cardinality != 0) {
+        bc = bitset_container_create();
+    }
+
+    if (i == 0) {
+        memcpy(bc->words, c->words+end, 8*b);
+    } else {
+        for (uint32_t k = end; k < 1024; ++k) {
+            val = c->words[k] << i;
+	    val |= c->words[k-1] >> (64 - i);
+	    bc->words[k-end] = val;
+        }
+        bc->words[b] = c->words[1023] >> (64 - i);
+    }
+
+    bc->cardinality = bitset_container_compute_cardinality(bc);
+    if (bc->cardinality == 0) {
+	    bitset_container_free(bc);
+	    return;
+    }
+    *hic = bc;
 }
 
 void bitset_container_set_range(bitset_container_t *bitset, uint32_t begin,
@@ -10645,7 +10809,7 @@ bool bitset_container_intersect(const bitset_container_t *src_1,
 #define WORDS_IN_AVX2_REG sizeof(__m256i) / sizeof(uint64_t)
 #endif
 /* Get the number of bits set (force computation) */
-int _scalar_bitset_container_compute_cardinality(const bitset_container_t *bitset) {
+static inline int _scalar_bitset_container_compute_cardinality(const bitset_container_t *bitset) {
   const uint64_t *words = bitset->words;
   int32_t sum = 0;
   for (int i = 0; i < BITSET_CONTAINER_SIZE_IN_WORDS; i += 4) {
@@ -10724,7 +10888,7 @@ int bitset_container_compute_cardinality(const bitset_container_t *bitset) {
 // clang-format off
 #define AVX_BITSET_CONTAINER_FN1(before, opname, opsymbol, avx_intrinsic,               \
                                 neon_intrinsic, after)                                \
-  int _avx2_bitset_container_##opname##_nocard(                                \
+  static inline int _avx2_bitset_container_##opname##_nocard(                                \
       const bitset_container_t *src_1, const bitset_container_t *src_2,        \
       bitset_container_t *dst) {                                               \
     const uint8_t *__restrict__ words_1 = (const uint8_t *)src_1->words;       \
@@ -10779,7 +10943,7 @@ int bitset_container_compute_cardinality(const bitset_container_t *bitset) {
 #define AVX_BITSET_CONTAINER_FN2(before, opname, opsymbol, avx_intrinsic,               \
                                 neon_intrinsic, after)                                \
   /* next, a version that updates cardinality*/                                \
-  int _avx2_bitset_container_##opname(const bitset_container_t *src_1,         \
+  static inline int _avx2_bitset_container_##opname(const bitset_container_t *src_1,         \
                                       const bitset_container_t *src_2,         \
                                       bitset_container_t *dst) {               \
     const __m256i *__restrict__ words_1 = (const __m256i *)src_1->words;       \
@@ -10794,7 +10958,7 @@ int bitset_container_compute_cardinality(const bitset_container_t *bitset) {
 #define AVX_BITSET_CONTAINER_FN3(before, opname, opsymbol, avx_intrinsic,               \
                                 neon_intrinsic, after)                                \
   /* next, a version that just computes the cardinality*/                      \
-  int _avx2_bitset_container_##opname##_justcard(                              \
+  static inline int _avx2_bitset_container_##opname##_justcard(                              \
       const bitset_container_t *src_1, const bitset_container_t *src_2) {      \
     const __m256i *__restrict__ data1 = (const __m256i *)src_1->words;         \
     const __m256i *__restrict__ data2 = (const __m256i *)src_2->words;         \
@@ -10875,7 +11039,7 @@ CROARING_UNTARGET_REGION
 
 #define SCALAR_BITSET_CONTAINER_FN(opname, opsymbol, avx_intrinsic,            \
                                    neon_intrinsic)                             \
-  int _scalar_bitset_container_##opname(const bitset_container_t *src_1,       \
+  static inline int _scalar_bitset_container_##opname(const bitset_container_t *src_1,       \
                                         const bitset_container_t *src_2,       \
                                         bitset_container_t *dst) {             \
     const uint64_t *__restrict__ words_1 = src_1->words;                       \
@@ -10893,7 +11057,7 @@ CROARING_UNTARGET_REGION
     dst->cardinality = sum;                                                    \
     return dst->cardinality;                                                   \
   }                                                                            \
-  int _scalar_bitset_container_##opname##_nocard(                              \
+  static inline int _scalar_bitset_container_##opname##_nocard(                              \
       const bitset_container_t *src_1, const bitset_container_t *src_2,        \
       bitset_container_t *dst) {                                               \
     const uint64_t *__restrict__ words_1 = src_1->words;                       \
@@ -10905,7 +11069,7 @@ CROARING_UNTARGET_REGION
     dst->cardinality = BITSET_UNKNOWN_CARDINALITY;                             \
     return dst->cardinality;                                                   \
   }                                                                            \
-  int _scalar_bitset_container_##opname##_justcard(                            \
+  static inline int _scalar_bitset_container_##opname##_justcard(                            \
       const bitset_container_t *src_1, const bitset_container_t *src_2) {      \
     const uint64_t *__restrict__ words_1 = src_1->words;                       \
     const uint64_t *__restrict__ words_2 = src_2->words;                       \
@@ -11242,7 +11406,7 @@ bool bitset_container_iterate64(const bitset_container_t *cont, uint32_t base, r
 
 #ifdef CROARING_IS_X64
 CROARING_TARGET_AVX2
-bool _avx2_bitset_container_equals(const bitset_container_t *container1, const bitset_container_t *container2) {
+static inline bool _avx2_bitset_container_equals(const bitset_container_t *container1, const bitset_container_t *container2) {
     const __m256i *ptr1 = (const __m256i*)container1->words;
     const __m256i *ptr2 = (const __m256i*)container2->words;
     for (size_t i = 0; i < BITSET_CONTAINER_SIZE_IN_WORDS*sizeof(uint64_t)/32; i++) {
@@ -11259,24 +11423,22 @@ CROARING_UNTARGET_REGION
 #endif // CROARING_IS_X64
 
 bool bitset_container_equals(const bitset_container_t *container1, const bitset_container_t *container2) {
-	if((container1->cardinality != BITSET_UNKNOWN_CARDINALITY) && (container2->cardinality != BITSET_UNKNOWN_CARDINALITY)) {
-		if(container1->cardinality != container2->cardinality) {
-			return false;
-		}
-    if (container1->cardinality == INT32_C(0x10000)) {
-        return true;
+  if((container1->cardinality != BITSET_UNKNOWN_CARDINALITY) && (container2->cardinality != BITSET_UNKNOWN_CARDINALITY)) {
+    if(container1->cardinality != container2->cardinality) {
+      return false;
     }
-	}
+    if (container1->cardinality == INT32_C(0x10000)) {
+      return true;
+    }
+  }
 #ifdef CROARING_IS_X64
   if( croaring_avx2() ) {
     return _avx2_bitset_container_equals(container1, container2);
   }
-#else
+#endif
   return memcmp(container1->words,
                 container2->words,
                 BITSET_CONTAINER_SIZE_IN_WORDS*sizeof(uint64_t)) == 0;
-#endif
-	return true;
 }
 
 bool bitset_container_is_subset(const bitset_container_t *container1,
@@ -11527,7 +11689,7 @@ container_t *get_copy_of_container(
         }
         assert(*typecode != SHARED_CONTAINER_TYPE);
 
-        if ((shared_container = (shared_container_t *)malloc(
+        if ((shared_container = (shared_container_t *)roaring_malloc(
                  sizeof(shared_container_t))) == NULL) {
             return NULL;
         }
@@ -11551,7 +11713,8 @@ container_t *get_copy_of_container(
  * is responsible for deallocation.
  */
 container_t *container_clone(const container_t *c, uint8_t typecode) {
-    c = container_unwrap_shared(c, &typecode);
+    // We do not want to allow cloning of shared containers.
+    // c = container_unwrap_shared(c, &typecode);
     switch (typecode) {
         case BITSET_CONTAINER_TYPE:
             return bitset_container_clone(const_CAST_bitset(c));
@@ -11560,8 +11723,7 @@ container_t *container_clone(const container_t *c, uint8_t typecode) {
         case RUN_CONTAINER_TYPE:
             return run_container_clone(const_CAST_run(c));
         case SHARED_CONTAINER_TYPE:
-            printf("shared containers are not cloneable\n");
-            assert(false);
+            // Shared containers are not cloneable. Are you mixing COW and non-COW bitmaps?
             return NULL;
         default:
             assert(false);
@@ -11581,7 +11743,7 @@ container_t *shared_container_extract_copy(
     if (sc->counter == 0) {
         answer = sc->container;
         sc->container = NULL;  // paranoid
-        free(sc);
+        roaring_free(sc);
     } else {
         answer = container_clone(sc->container, *typecode);
     }
@@ -11596,7 +11758,7 @@ void shared_container_free(shared_container_t *container) {
         assert(container->typecode != SHARED_CONTAINER_TYPE);
         container_free(container->container, container->typecode);
         container->container = NULL;  // paranoid
-        free(container);
+        roaring_free(container);
     }
 }
 
@@ -12969,6 +13131,10 @@ void array_container_negation(const array_container_t *src,
     uint64_t card = UINT64_C(1 << 16);
     bitset_container_set_all(dst);
 
+    if (src->cardinality == 0) {
+        return;
+    }
+
     dst->cardinality = (int32_t)bitset_clear_list(dst->words, card, src->array,
                                                   (uint64_t)src->cardinality);
 }
@@ -14031,9 +14197,15 @@ bool bitset_bitset_container_ixor(
     bitset_container_t *src_1, const bitset_container_t *src_2,
     container_t **dst
 ){
-    bool ans = bitset_bitset_container_xor(src_1, src_2, dst);
-    bitset_container_free(src_1);
-    return ans;
+    int card = bitset_container_xor(src_1, src_2, src_1);
+    if (card <= DEFAULT_MAX_SIZE) {
+        *dst = array_container_from_bitset(src_1);
+        bitset_container_free(src_1);
+        return false;  // not bitset
+    } else {
+        *dst = src_1;
+        return true;
+    }
 }
 
 bool array_bitset_container_ixor(
@@ -14192,13 +14364,13 @@ bool run_container_add(run_container_t *run, uint16_t pos) {
 run_container_t *run_container_create_given_capacity(int32_t size) {
     run_container_t *run;
     /* Allocate the run container itself. */
-    if ((run = (run_container_t *)malloc(sizeof(run_container_t))) == NULL) {
+    if ((run = (run_container_t *)roaring_malloc(sizeof(run_container_t))) == NULL) {
         return NULL;
     }
     if (size <= 0 ) { // we don't want to rely on malloc(0)
         run->runs = NULL;
-    } else if ((run->runs = (rle16_t *)malloc(sizeof(rle16_t) * size)) == NULL) {
-        free(run);
+    } else if ((run->runs = (rle16_t *)roaring_malloc(sizeof(rle16_t) * size)) == NULL) {
+        roaring_free(run);
         return NULL;
     }
     run->capacity = size;
@@ -14211,8 +14383,8 @@ int run_container_shrink_to_fit(run_container_t *src) {
     int savings = src->capacity - src->n_runs;
     src->capacity = src->n_runs;
     rle16_t *oldruns = src->runs;
-    src->runs = (rle16_t *)realloc(oldruns, src->capacity * sizeof(rle16_t));
-    if (src->runs == NULL) free(oldruns);  // should never happen?
+    src->runs = (rle16_t *)roaring_realloc(oldruns, src->capacity * sizeof(rle16_t));
+    if (src->runs == NULL) roaring_free(oldruns);  // should never happen?
     return savings;
 }
 /* Create a new run container. Return NULL in case of failure. */
@@ -14229,13 +14401,70 @@ run_container_t *run_container_clone(const run_container_t *src) {
     return run;
 }
 
+void run_container_offset(const run_container_t *c,
+                          container_t **loc, container_t **hic,
+                          uint16_t offset) {
+    run_container_t *lo = NULL, *hi = NULL;
+
+    bool split;
+    int lo_cap, hi_cap;
+    int top, pivot;
+
+    top = (1 << 16) - offset;
+    pivot = run_container_index_equalorlarger(c, top);
+
+    if (pivot == -1) {
+        split = false;
+        lo_cap = c->n_runs;
+        hi_cap = 0;
+    } else {
+        split = c->runs[pivot].value <= top;
+        lo_cap = pivot + (split ? 1 : 0);
+        hi_cap = c->n_runs - pivot;
+    }
+
+    if (loc && lo_cap) {
+        lo = run_container_create_given_capacity(lo_cap);
+        memcpy(lo->runs, c->runs, lo_cap*sizeof(rle16_t));
+        lo->n_runs = lo_cap;
+        for (int i = 0; i < lo_cap; ++i) {
+            lo->runs[i].value += offset;
+        }
+        *loc = (container_t*)lo;
+    }
+
+    if (hic && hi_cap) {
+        hi = run_container_create_given_capacity(hi_cap);
+        memcpy(hi->runs, c->runs+pivot, hi_cap*sizeof(rle16_t));
+        hi->n_runs = hi_cap;
+        for (int i = 0; i < hi_cap; ++i) {
+            hi->runs[i].value += offset;
+        }
+        *hic = (container_t*)hi;
+    }
+
+    // Fix the split.
+    if (split) {
+        if (lo != NULL) {
+            // Add the missing run to 'lo', exhausting length.
+            lo->runs[lo->n_runs-1].length = (1 << 16) - lo->runs[lo->n_runs-1].value - 1;
+        }
+
+        if (hi != NULL) {
+            // Fix the first run in 'hi'.
+            hi->runs[0].length -= UINT16_MAX - hi->runs[0].value + 1;
+            hi->runs[0].value = 0;
+        }
+    }
+}
+
 /* Free memory. */
 void run_container_free(run_container_t *run) {
     if(run->runs != NULL) {// Jon Strabala reports that some tools complain otherwise
-      free(run->runs);
+      roaring_free(run->runs);
       run->runs = NULL;  // pedantic
     }
-    free(run);
+    roaring_free(run);
 }
 
 void run_container_grow(run_container_t *run, int32_t min, bool copy) {
@@ -14251,14 +14480,14 @@ void run_container_grow(run_container_t *run, int32_t min, bool copy) {
     if (copy) {
         rle16_t *oldruns = run->runs;
         run->runs =
-            (rle16_t *)realloc(oldruns, run->capacity * sizeof(rle16_t));
-        if (run->runs == NULL) free(oldruns);
+            (rle16_t *)roaring_realloc(oldruns, run->capacity * sizeof(rle16_t));
+        if (run->runs == NULL) roaring_free(oldruns);
     } else {
         // Jon Strabala reports that some tools complain otherwise
         if (run->runs != NULL) {
-          free(run->runs);
+          roaring_free(run->runs);
         }
-        run->runs = (rle16_t *)malloc(run->capacity * sizeof(rle16_t));
+        run->runs = (rle16_t *)roaring_malloc(run->capacity * sizeof(rle16_t));
     }
     // handle the case where realloc fails
     if (run->runs == NULL) {
@@ -14962,6 +15191,76 @@ int run_container_cardinality(const run_container_t *run) {
 } } }  // extern "C" { namespace roaring { namespace internal {
 #endif
 /* end file src/containers/run.c */
+/* begin file src/memory.c */
+#include <stdlib.h>
+
+// without the following, we get lots of warnings about posix_memalign
+#ifndef __cplusplus
+extern int posix_memalign(void **__memptr, size_t __alignment, size_t __size);
+#endif  //__cplusplus // C++ does not have a well defined signature
+
+// portable version of  posix_memalign
+static void *roaring_bitmap_aligned_malloc(size_t alignment, size_t size) {
+    void *p;
+#ifdef _MSC_VER
+    p = _aligned_malloc(size, alignment);
+#elif defined(__MINGW32__) || defined(__MINGW64__)
+    p = __mingw_aligned_malloc(size, alignment);
+#else
+    // somehow, if this is used before including "x86intrin.h", it creates an
+    // implicit defined warning.
+    if (posix_memalign(&p, alignment, size) != 0) return NULL;
+#endif
+    return p;
+}
+
+static void roaring_bitmap_aligned_free(void *memblock) {
+#ifdef _MSC_VER
+    _aligned_free(memblock);
+#elif defined(__MINGW32__) || defined(__MINGW64__)
+    __mingw_aligned_free(memblock);
+#else
+    free(memblock);
+#endif
+}
+
+static roaring_memory_t global_memory_hook = {
+    .malloc = malloc,
+    .realloc = realloc,
+    .calloc = calloc,
+    .free = free,
+    .aligned_malloc = roaring_bitmap_aligned_malloc,
+    .aligned_free = roaring_bitmap_aligned_free,
+};
+
+void roaring_init_memory_hook(roaring_memory_t memory_hook) {
+    global_memory_hook = memory_hook;
+}
+
+void* roaring_malloc(size_t n) {
+    return global_memory_hook.malloc(n);
+}
+
+void* roaring_realloc(void* p, size_t new_sz) {
+    return global_memory_hook.realloc(p, new_sz);
+}
+
+void* roaring_calloc(size_t n_elements, size_t element_size) {
+    return global_memory_hook.calloc(n_elements, element_size);
+}
+
+void roaring_free(void* p) {
+    global_memory_hook.free(p);
+}
+
+void* roaring_aligned_malloc(size_t alignment, size_t size) {
+    return global_memory_hook.aligned_malloc(alignment, size);
+}
+
+void roaring_aligned_free(void* p) {
+    global_memory_hook.aligned_free(p);
+}
+/* end file src/memory.c */
 /* begin file src/roaring.c */
 #include <assert.h>
 #include <stdarg.h>
@@ -14978,8 +15277,9 @@ using namespace ::roaring::internal;
 extern "C" { namespace roaring { namespace api {
 #endif
 
-extern inline bool roaring_bitmap_contains(const roaring_bitmap_t *r,
-                                           uint32_t val);
+#define CROARING_SERIALIZATION_ARRAY_UINT32 1
+#define CROARING_SERIALIZATION_CONTAINER 2
+
 extern inline bool roaring_bitmap_get_copy_on_write(const roaring_bitmap_t* r);
 extern inline void roaring_bitmap_set_copy_on_write(roaring_bitmap_t* r, bool cow);
 
@@ -15030,13 +15330,13 @@ static inline container_t *containerptr_roaring_bitmap_add(
 
 roaring_bitmap_t *roaring_bitmap_create_with_capacity(uint32_t cap) {
     roaring_bitmap_t *ans =
-        (roaring_bitmap_t *)malloc(sizeof(roaring_bitmap_t));
+        (roaring_bitmap_t *)roaring_malloc(sizeof(roaring_bitmap_t));
     if (!ans) {
         return NULL;
     }
     bool is_ok = ra_init_with_capacity(&ans->high_low_container, cap);
     if (!is_ok) {
-        free(ans);
+        roaring_free(ans);
         return NULL;
     }
     return ans;
@@ -15260,7 +15560,6 @@ void roaring_bitmap_printf_describe(const roaring_bitmap_t *r) {
         printf("%d: %s (%d)", ra->keys[i],
                get_full_container_name(ra->containers[i], ra->typecodes[i]),
                container_get_cardinality(ra->containers[i], ra->typecodes[i]));
-
         if (ra->typecodes[i] == SHARED_CONTAINER_TYPE) {
             printf(
                 "(shared count = %" PRIu32 " )",
@@ -15340,14 +15639,14 @@ void roaring_bitmap_statistics(const roaring_bitmap_t *r,
 
 roaring_bitmap_t *roaring_bitmap_copy(const roaring_bitmap_t *r) {
     roaring_bitmap_t *ans =
-        (roaring_bitmap_t *)malloc(sizeof(roaring_bitmap_t));
+        (roaring_bitmap_t *)roaring_malloc(sizeof(roaring_bitmap_t));
     if (!ans) {
         return NULL;
     }
     if (!ra_init_with_capacity(  // allocation of list of containers can fail
                 &ans->high_low_container, r->high_low_container.size)
     ){
-        free(ans);
+        roaring_free(ans);
         return NULL;
     }
     if (!ra_overwrite(  // memory allocation of individual containers may fail
@@ -15362,6 +15661,7 @@ roaring_bitmap_t *roaring_bitmap_copy(const roaring_bitmap_t *r) {
 
 bool roaring_bitmap_overwrite(roaring_bitmap_t *dest,
                                      const roaring_bitmap_t *src) {
+    roaring_bitmap_set_copy_on_write(dest, is_cow(src));
     return ra_overwrite(&src->high_low_container, &dest->high_low_container,
                         is_cow(src));
 }
@@ -15370,7 +15670,7 @@ void roaring_bitmap_free(const roaring_bitmap_t *r) {
     if (!is_frozen(r)) {
       ra_clear((roaring_array_t*)&r->high_low_container);
     }
-    free((roaring_bitmap_t*)r);
+    roaring_free((roaring_bitmap_t*)r);
 }
 
 void roaring_bitmap_clear(roaring_bitmap_t *r) {
@@ -15549,7 +15849,7 @@ roaring_bitmap_t *roaring_bitmap_and(const roaring_bitmap_t *x1,
               length2 = x2->high_low_container.size;
     uint32_t neededcap = length1 > length2 ? length2 : length1;
     roaring_bitmap_t *answer = roaring_bitmap_create_with_capacity(neededcap);
-    roaring_bitmap_set_copy_on_write(answer, is_cow(x1) && is_cow(x2));
+    roaring_bitmap_set_copy_on_write(answer, is_cow(x1) || is_cow(x2));
 
     int pos1 = 0, pos2 = 0;
 
@@ -15697,7 +15997,7 @@ roaring_bitmap_t *roaring_bitmap_or(const roaring_bitmap_t *x1,
     }
     roaring_bitmap_t *answer =
         roaring_bitmap_create_with_capacity(length1 + length2);
-    roaring_bitmap_set_copy_on_write(answer, is_cow(x1) && is_cow(x2));
+    roaring_bitmap_set_copy_on_write(answer, is_cow(x1) || is_cow(x2));
     int pos1 = 0, pos2 = 0;
     uint8_t type1, type2;
     uint16_t s1 = ra_get_key_at_index(&x1->high_low_container, pos1);
@@ -15848,7 +16148,7 @@ roaring_bitmap_t *roaring_bitmap_xor(const roaring_bitmap_t *x1,
     }
     roaring_bitmap_t *answer =
         roaring_bitmap_create_with_capacity(length1 + length2);
-    roaring_bitmap_set_copy_on_write(answer, is_cow(x1) && is_cow(x2));
+    roaring_bitmap_set_copy_on_write(answer, is_cow(x1) || is_cow(x2));
     int pos1 = 0, pos2 = 0;
     uint8_t type1, type2;
     uint16_t s1 = ra_get_key_at_index(&x1->high_low_container, pos1);
@@ -16009,14 +16309,14 @@ roaring_bitmap_t *roaring_bitmap_andnot(const roaring_bitmap_t *x1,
               length2 = x2->high_low_container.size;
     if (0 == length1) {
         roaring_bitmap_t *empty_bitmap = roaring_bitmap_create();
-        roaring_bitmap_set_copy_on_write(empty_bitmap, is_cow(x1) && is_cow(x2));
+        roaring_bitmap_set_copy_on_write(empty_bitmap, is_cow(x1) || is_cow(x2));
         return empty_bitmap;
     }
     if (0 == length2) {
         return roaring_bitmap_copy(x1);
     }
     roaring_bitmap_t *answer = roaring_bitmap_create_with_capacity(length1);
-    roaring_bitmap_set_copy_on_write(answer, is_cow(x1) && is_cow(x2));
+    roaring_bitmap_set_copy_on_write(answer, is_cow(x1) || is_cow(x2));
 
     int pos1 = 0, pos2 = 0;
     uint8_t type1, type2;
@@ -16315,10 +16615,10 @@ size_t roaring_bitmap_serialize(const roaring_bitmap_t *r, char *buf) {
     uint64_t cardinality = roaring_bitmap_get_cardinality(r);
     uint64_t sizeasarray = cardinality * sizeof(uint32_t) + sizeof(uint32_t);
     if (portablesize < sizeasarray) {
-        buf[0] = SERIALIZATION_CONTAINER;
+        buf[0] = CROARING_SERIALIZATION_CONTAINER;
         return roaring_bitmap_portable_serialize(r, buf + 1) + 1;
     } else {
-        buf[0] = SERIALIZATION_ARRAY_UINT32;
+        buf[0] = CROARING_SERIALIZATION_ARRAY_UINT32;
         memcpy(buf + 1, &cardinality, sizeof(uint32_t));
         roaring_bitmap_to_uint32_array(
             r, (uint32_t *)(buf + 1 + sizeof(uint32_t)));
@@ -16340,7 +16640,7 @@ size_t roaring_bitmap_portable_size_in_bytes(const roaring_bitmap_t *r) {
 
 roaring_bitmap_t *roaring_bitmap_portable_deserialize_safe(const char *buf, size_t maxbytes) {
     roaring_bitmap_t *ans =
-        (roaring_bitmap_t *)malloc(sizeof(roaring_bitmap_t));
+        (roaring_bitmap_t *)roaring_malloc(sizeof(roaring_bitmap_t));
     if (ans == NULL) {
         return NULL;
     }
@@ -16349,7 +16649,7 @@ roaring_bitmap_t *roaring_bitmap_portable_deserialize_safe(const char *buf, size
     if(is_ok) assert(bytesread <= maxbytes);
     roaring_bitmap_set_copy_on_write(ans, false);
     if (!is_ok) {
-        free(ans);
+        roaring_free(ans);
         return NULL;
     }
     return ans;
@@ -16372,7 +16672,7 @@ size_t roaring_bitmap_portable_serialize(const roaring_bitmap_t *r,
 
 roaring_bitmap_t *roaring_bitmap_deserialize(const void *buf) {
     const char *bufaschar = (const char *)buf;
-    if (*(const unsigned char *)buf == SERIALIZATION_ARRAY_UINT32) {
+    if (*(const unsigned char *)buf == CROARING_SERIALIZATION_ARRAY_UINT32) {
         /* This looks like a compressed set of uint32_t elements */
         uint32_t card;
         memcpy(&card, bufaschar + 1, sizeof(uint32_t));
@@ -16380,7 +16680,7 @@ roaring_bitmap_t *roaring_bitmap_deserialize(const void *buf) {
             (const uint32_t *)(bufaschar + 1 + sizeof(uint32_t));
 
         return roaring_bitmap_of_ptr(card, elems);
-    } else if (bufaschar[0] == SERIALIZATION_CONTAINER) {
+    } else if (bufaschar[0] == CROARING_SERIALIZATION_CONTAINER) {
         return roaring_bitmap_portable_deserialize(bufaschar + 1);
     } else
         return (NULL);
@@ -16575,7 +16875,7 @@ void roaring_init_iterator_last(const roaring_bitmap_t *r,
 
 roaring_uint32_iterator_t *roaring_create_iterator(const roaring_bitmap_t *r) {
     roaring_uint32_iterator_t *newit =
-        (roaring_uint32_iterator_t *)malloc(sizeof(roaring_uint32_iterator_t));
+        (roaring_uint32_iterator_t *)roaring_malloc(sizeof(roaring_uint32_iterator_t));
     if (newit == NULL) return NULL;
     roaring_init_iterator(r, newit);
     return newit;
@@ -16584,7 +16884,7 @@ roaring_uint32_iterator_t *roaring_create_iterator(const roaring_bitmap_t *r) {
 roaring_uint32_iterator_t *roaring_copy_uint32_iterator(
     const roaring_uint32_iterator_t *it) {
     roaring_uint32_iterator_t *newit =
-        (roaring_uint32_iterator_t *)malloc(sizeof(roaring_uint32_iterator_t));
+        (roaring_uint32_iterator_t *)roaring_malloc(sizeof(roaring_uint32_iterator_t));
     memcpy(newit, it, sizeof(roaring_uint32_iterator_t));
     return newit;
 }
@@ -16830,7 +17130,7 @@ uint32_t roaring_read_uint32_iterator(roaring_uint32_iterator_t *it, uint32_t* b
 
 
 
-void roaring_free_uint32_iterator(roaring_uint32_iterator_t *it) { free(it); }
+void roaring_free_uint32_iterator(roaring_uint32_iterator_t *it) { roaring_free(it); }
 
 /****
 * end of roaring_uint32_iterator_t
@@ -17093,6 +17393,113 @@ void roaring_bitmap_flip_inplace(roaring_bitmap_t *x1, uint64_t range_start,
     }
 }
 
+static void offset_append_with_merge(roaring_array_t *ra, int k, container_t *c, uint8_t t) {
+    int size = ra_get_size(ra);
+    if (size == 0 || ra_get_key_at_index(ra, size-1) != k) {
+        // No merge.
+        ra_append(ra, k, c, t);
+        return;
+    }
+
+    uint8_t last_t, new_t;
+    container_t *last_c, *new_c;
+
+    // NOTE: we don't need to unwrap here, since we added last_c ourselves
+    // we have the certainty it's not a shared container.
+    // The same applies to c, as it's the result of calling container_offset.
+    last_c = ra_get_container_at_index(ra, size-1, &last_t);
+    new_c = container_ior(last_c, last_t, c, t, &new_t);
+
+    ra_set_container_at_index(ra, size-1, new_c, new_t);
+
+    // Comparison of pointers of different origin is UB (or so claim some compiler
+    // makers), so we compare their bit representation only.
+    if ((uintptr_t)last_c != (uintptr_t)new_c) {
+        container_free(last_c, last_t);
+    }
+    container_free(c, t);
+}
+
+// roaring_bitmap_add_offset adds the value 'offset' to each and every value in
+// a bitmap, generating a new bitmap in the process. If offset + element is
+// outside of the range [0,2^32), that the element will be dropped.
+// We need "offset" to be 64 bits because we want to support values
+// between -0xFFFFFFFF up to +0xFFFFFFFF.
+roaring_bitmap_t *roaring_bitmap_add_offset(const roaring_bitmap_t *bm,
+                                            int64_t offset) {
+    roaring_bitmap_t *answer;
+    roaring_array_t *ans_ra;
+    int64_t container_offset;
+    uint16_t in_offset;
+
+    const roaring_array_t *bm_ra = &bm->high_low_container;
+    int length = bm_ra->size;
+
+    if (offset == 0) {
+        return roaring_bitmap_copy(bm);
+    }
+
+    container_offset = offset >> 16;
+    in_offset = (uint16_t)(offset - container_offset * (1 << 16));
+
+    answer = roaring_bitmap_create();
+    roaring_bitmap_set_copy_on_write(answer, is_cow(bm));
+
+    ans_ra = &answer->high_low_container;
+
+    if (in_offset == 0) {
+        ans_ra = &answer->high_low_container;
+
+        for (int i = 0, j = 0; i < length; ++i) {
+            int64_t key = ra_get_key_at_index(bm_ra, i);
+            key += container_offset;
+
+            if (key < 0 || key >= (1 << 16)) {
+                continue;
+            }
+
+            ra_append_copy(ans_ra, bm_ra, i, false);
+            ans_ra->keys[j++] = key;
+        }
+
+        return answer;
+    }
+
+    uint8_t t;
+    const container_t *c;
+    container_t *lo, *hi, **lo_ptr, **hi_ptr;
+    int64_t k;
+
+    for (int i = 0; i < length; ++i) {
+        lo = hi = NULL;
+        lo_ptr = hi_ptr = NULL;
+
+        k = ra_get_key_at_index(bm_ra, i)+container_offset;
+        if (k >= 0 && k < (1 << 16)) {
+            lo_ptr = &lo;
+        }
+        if (k+1 >= 0 && k+1 < (1 << 16)) {
+            hi_ptr = &hi;
+        }
+        if (lo_ptr == NULL && hi_ptr == NULL) {
+            continue;
+        }
+
+        c = ra_get_container_at_index(bm_ra, i, &t);
+        c = container_unwrap_shared(c, &t);
+
+        container_add_offset(c, t, lo_ptr, hi_ptr, in_offset);
+        if (lo != NULL) {
+            offset_append_with_merge(ans_ra, k, lo, t);
+        }
+        if (hi != NULL) {
+            ra_append(ans_ra, k+1, hi, t);
+        }
+    }
+
+    return answer;
+}
+
 roaring_bitmap_t *roaring_bitmap_lazy_or(const roaring_bitmap_t *x1,
                                          const roaring_bitmap_t *x2,
                                          const bool bitsetconversion) {
@@ -17107,7 +17514,7 @@ roaring_bitmap_t *roaring_bitmap_lazy_or(const roaring_bitmap_t *x1,
     }
     roaring_bitmap_t *answer =
         roaring_bitmap_create_with_capacity(length1 + length2);
-    roaring_bitmap_set_copy_on_write(answer, is_cow(x1) && is_cow(x2));
+    roaring_bitmap_set_copy_on_write(answer, is_cow(x1) || is_cow(x2));
     int pos1 = 0, pos2 = 0;
     uint8_t type1, type2;
     uint16_t s1 = ra_get_key_at_index(&x1->high_low_container, pos1);
@@ -17284,7 +17691,7 @@ roaring_bitmap_t *roaring_bitmap_lazy_xor(const roaring_bitmap_t *x1,
     }
     roaring_bitmap_t *answer =
         roaring_bitmap_create_with_capacity(length1 + length2);
-    roaring_bitmap_set_copy_on_write(answer, is_cow(x1) && is_cow(x2));
+    roaring_bitmap_set_copy_on_write(answer, is_cow(x1) || is_cow(x2));
     int pos1 = 0, pos2 = 0;
     uint8_t type1, type2;
     uint16_t s1 = ra_get_key_at_index(&x1->high_low_container, pos1);
@@ -17557,6 +17964,25 @@ bool roaring_bitmap_intersect(const roaring_bitmap_t *x1,
         }
     }
     return answer != 0;
+}
+
+bool roaring_bitmap_intersect_with_range(const roaring_bitmap_t *bm,
+                                         uint64_t x, uint64_t y) {
+    if (x >= y) {
+        // Empty range.
+        return false;
+    }
+    roaring_uint32_iterator_t it;
+    roaring_init_iterator(bm, &it);
+    if (!roaring_move_uint32_iterator_equalorlarger(&it, x)) {
+        // No values above x.
+        return false;
+    }
+    if (it.current_value >= y) {
+        // No values below y.
+        return false;
+    }
+    return true;
 }
 
 
@@ -17909,7 +18335,7 @@ roaring_bitmap_frozen_view(const char *buf, size_t length) {
     alloc_size += num_run_containers * sizeof(run_container_t);
     alloc_size += num_array_containers * sizeof(array_container_t);
 
-    char *arena = (char *)malloc(alloc_size);
+    char *arena = (char *)roaring_malloc(alloc_size);
     if (arena == NULL) {
         return NULL;
     }
@@ -17924,6 +18350,14 @@ roaring_bitmap_frozen_view(const char *buf, size_t length) {
     rb->high_low_container.containers =
         (container_t **)arena_alloc(&arena,
                                     sizeof(container_t*) * num_containers);
+    // Ensure offset of high_low_container.containers is known distance used in
+    // C++ wrapper. sizeof(roaring_bitmap_t) is used as it is the size of the
+    // only allocation that precedes high_low_container.containers. If this is
+    // changed (new allocation or changed order), this offset will also need to
+    // be changed in the C++ wrapper.
+    assert(rb ==
+           (roaring_bitmap_t *)((char *)rb->high_low_container.containers -
+                                sizeof(roaring_bitmap_t)));
     for (int32_t i = 0; i < num_containers; i++) {
         switch (typecodes[i]) {
             case BITSET_CONTAINER_TYPE: {
@@ -17956,7 +18390,7 @@ roaring_bitmap_frozen_view(const char *buf, size_t length) {
                 break;
             }
             default:
-                free(arena);
+                roaring_free(arena);
                 return NULL;
         }
     }
@@ -18009,7 +18443,7 @@ static bool realloc_array(roaring_array_t *ra, int32_t new_capacity) {
     // https://github.com/RoaringBitmap/CRoaring/issues/256
 
     if ( new_capacity == 0 ) {
-      free(ra->containers);
+      roaring_free(ra->containers);
       ra->containers = NULL;
       ra->keys = NULL;
       ra->typecodes = NULL;
@@ -18018,7 +18452,7 @@ static bool realloc_array(roaring_array_t *ra, int32_t new_capacity) {
     }
     const size_t memoryneeded = new_capacity * (
                 sizeof(uint16_t) + sizeof(container_t *) + sizeof(uint8_t));
-    void *bigalloc = malloc(memoryneeded);
+    void *bigalloc = roaring_malloc(memoryneeded);
     if (!bigalloc) return false;
     void *oldbigalloc = ra->containers;
     container_t **newcontainers = (container_t **)bigalloc;
@@ -18035,7 +18469,7 @@ static bool realloc_array(roaring_array_t *ra, int32_t new_capacity) {
     ra->keys = newkeys;
     ra->typecodes = newtypecodes;
     ra->allocation_size = new_capacity;
-    free(oldbigalloc);
+    roaring_free(oldbigalloc);
     return true;
 }
 
@@ -18046,7 +18480,7 @@ bool ra_init_with_capacity(roaring_array_t *new_ra, uint32_t cap) {
     if (cap > INT32_MAX) { return false; }
 
     if(cap > 0) {
-      void *bigalloc = malloc(cap *
+      void *bigalloc = roaring_malloc(cap *
                 (sizeof(uint16_t) + sizeof(container_t *) + sizeof(uint8_t)));
       if( bigalloc == NULL ) return false;
       new_ra->containers = (container_t **)bigalloc;
@@ -18135,7 +18569,7 @@ void ra_reset(roaring_array_t *ra) {
 }
 
 void ra_clear_without_containers(roaring_array_t *ra) {
-    free(ra->containers);    // keys and typecodes are allocated with containers
+    roaring_free(ra->containers);    // keys and typecodes are allocated with containers
     ra->size = 0;
     ra->allocation_size = 0;
     ra->containers = NULL;
@@ -18150,12 +18584,13 @@ void ra_clear(roaring_array_t *ra) {
 
 bool extend_array(roaring_array_t *ra, int32_t k) {
     int32_t desired_size = ra->size + k;
-    assert(desired_size <= MAX_CONTAINERS);
+    const int32_t max_containers = 65536;
+    assert(desired_size <= max_containers);
     if (desired_size > ra->allocation_size) {
         int32_t new_capacity =
             (ra->size < 1024) ? 2 * desired_size : 5 * desired_size / 4;
-        if (new_capacity > MAX_CONTAINERS) {
-            new_capacity = MAX_CONTAINERS;
+        if (new_capacity > max_containers) {
+            new_capacity = max_containers;
         }
 
         return realloc_array(ra, new_capacity);
@@ -18448,7 +18883,7 @@ bool ra_range_uint32_array(const roaring_array_t *ra, size_t offset, size_t limi
                 //first_skip = t_limit - (ctr + t_limit - offset);
                 first_skip = offset - ctr;
                 first = true;
-                t_ans = (uint32_t *)malloc(sizeof(*t_ans) * (first_skip + limit));
+                t_ans = (uint32_t *)roaring_malloc(sizeof(*t_ans) * (first_skip + limit));
                 if(t_ans == NULL) {
                   return false;
                 }
@@ -18456,15 +18891,15 @@ bool ra_range_uint32_array(const roaring_array_t *ra, size_t offset, size_t limi
                 cur_len = first_skip + limit;
             }
             if (dtr + t_limit > cur_len){
-                uint32_t * append_ans = (uint32_t *)malloc(sizeof(*append_ans) * (cur_len + t_limit));
+                uint32_t * append_ans = (uint32_t *)roaring_malloc(sizeof(*append_ans) * (cur_len + t_limit));
                 if(append_ans == NULL) {
-                  if(t_ans != NULL) free(t_ans);
+                  if(t_ans != NULL) roaring_free(t_ans);
                   return false;
                 }
                 memset(append_ans, 0, sizeof(*append_ans) * (cur_len + t_limit));
                 cur_len = cur_len + t_limit;
                 memcpy(append_ans, t_ans, dtr * sizeof(uint32_t));
-                free(t_ans);
+                roaring_free(t_ans);
                 t_ans = append_ans;
             }
             switch (ra->typecodes[i]) {
@@ -18539,7 +18974,7 @@ size_t ra_portable_serialize(const roaring_array_t *ra, char *buf) {
         memcpy(buf, &cookie, sizeof(cookie));
         buf += sizeof(cookie);
         uint32_t s = (ra->size + 7) / 8;
-        uint8_t *bitmapOfRunContainers = (uint8_t *)calloc(s, 1);
+        uint8_t *bitmapOfRunContainers = (uint8_t *)roaring_calloc(s, 1);
         assert(bitmapOfRunContainers != NULL);  // todo: handle
         for (int32_t i = 0; i < ra->size; ++i) {
             if (get_container_type(ra->containers[i], ra->typecodes[i]) ==
@@ -18549,7 +18984,7 @@ size_t ra_portable_serialize(const roaring_array_t *ra, char *buf) {
         }
         memcpy(buf, bitmapOfRunContainers, s);
         buf += s;
-        free(bitmapOfRunContainers);
+        roaring_free(bitmapOfRunContainers);
         if (ra->size < NO_OFFSET_THRESHOLD) {
             startOffset = 4 + 4 * ra->size + s;
         } else {
@@ -18709,6 +19144,11 @@ bool ra_portable_deserialize(roaring_array_t *answer, const char *buf, const siz
         }
         memcpy(&size, buf, sizeof(int32_t));
         buf += sizeof(uint32_t);
+    }
+    if (size < 0) {
+       fprintf(stderr, "You cannot have a negative number of containers, the data must be corrupted: %" PRId32 "\n",
+                size);
+       return false; // logically impossible
     }
     if (size > (1<<16)) {
        fprintf(stderr, "You cannot have so many containers, the data must be corrupted: %" PRId32 "\n",
@@ -18892,9 +19332,7 @@ static void pq_add(roaring_pq_t *pq, roaring_pq_element_t *t) {
 }
 
 static void pq_free(roaring_pq_t *pq) {
-    free(pq->elements);
-    pq->elements = NULL;  // paranoid
-    free(pq);
+    roaring_free(pq);
 }
 
 static void percolate_down(roaring_pq_t *pq, uint32_t i) {
@@ -18921,9 +19359,9 @@ static void percolate_down(roaring_pq_t *pq, uint32_t i) {
 }
 
 static roaring_pq_t *create_pq(const roaring_bitmap_t **arr, uint32_t length) {
-    roaring_pq_t *answer = (roaring_pq_t *)malloc(sizeof(roaring_pq_t));
-    answer->elements =
-        (roaring_pq_element_t *)malloc(sizeof(roaring_pq_element_t) * length);
+    size_t alloc_size = sizeof(roaring_pq_t) + sizeof(roaring_pq_element_t) * length;
+    roaring_pq_t *answer = (roaring_pq_t *)roaring_malloc(alloc_size);
+    answer->elements = (roaring_pq_element_t *)(answer + 1);
     answer->size = length;
     for (uint32_t i = 0; i < length; i++) {
         answer->elements[i].bitmap = (roaring_bitmap_t *)arr[i];
@@ -19038,8 +19476,8 @@ static roaring_bitmap_t *lazy_or_from_lazy_inputs(roaring_bitmap_t *x1,
     }
     ra_clear_without_containers(&x1->high_low_container);
     ra_clear_without_containers(&x2->high_low_container);
-    free(x1);
-    free(x2);
+    roaring_free(x1);
+    roaring_free(x2);
     return answer;
 }
 

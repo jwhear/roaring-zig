@@ -590,9 +590,128 @@ pub const Bitmap = extern struct {
 ///  frozenSerialize/frozenView
 pub fn allocForFrozen(allocator: std.mem.Allocator, len: usize) ![]align(32)u8 {
     // The buffer must be 32-byte aligned and sized exactly
-    return allocator.allocAdvanced(u8,
+    return allocator.alignedAlloc(u8,
         32, // alignment
-        len,
-        std.mem.Allocator.Exact.exact
+        len
     );
 }
+
+/// Sets the global Roaring memory allocator.
+pub fn setAllocator(allocator: std.mem.Allocator) void {
+    global_roaring_allocator = allocator;
+    c.roaring_init_memory_hook(.{
+        .malloc  = roaringMalloc,
+        .realloc = roaringRealloc,
+        .calloc  = roaringCalloc,
+        .free    = roaringFree,
+        .aligned_malloc = roaringAlignedMalloc,
+        .aligned_free   = roaringFree,  // don't need a special implementation
+    });
+}
+
+/// The global Roaring allocator is used for bookkeeping; this function frees
+///  that memory.
+pub fn freeAllocator() void {
+    if (global_roaring_allocator) |ally| {
+        allocations.deinit(ally);
+    }
+}
+
+/// Roaring only supports a single, global allocator
+var global_roaring_allocator: ?std.mem.Allocator = null;
+
+// The roaring_resize function uses pointers instead of slices, making functions
+//  like `realloc` tricky as the Allocator interface expects slices.  This means
+//  that we have to track the lengths associated with allocations somehow.
+// A relatively cheap implementation would prefix allocations with a header to
+//  store the length, but this makes aligned allocations really challenging.
+// This implementation uses a hash map where the pointers are the keys and the
+//  values are the lengths.
+var allocations = std.AutoHashMapUnmanaged(?*anyopaque, usize){};
+
+fn setAllocation(mem: []u8) ?*anyopaque {
+    if (global_roaring_allocator) |ally| {
+        const ptr = @ptrCast(?*anyopaque, mem.ptr);
+        allocations.put(ally, ptr, mem.len) catch return null;
+        return ptr;
+    }
+    @panic("global_roaring_allocator is not set");
+}
+
+fn getAllocation(ptr: ?*anyopaque) []u8 {
+    var len = allocations.get(ptr) orelse @panic("getAllocation cannot find pointer");
+    return @ptrCast([*]u8, ptr)[0 .. len];
+}
+
+fn getRemoveAllocation(ptr: ?*anyopaque) []u8 {
+    var kv = allocations.fetchRemove(ptr) orelse @panic("removeAllocationn cannot find pointer");
+    return @ptrCast([*c]u8, ptr)[0 .. kv.value];
+}
+
+
+export fn roaringMalloc(size: usize) ?*anyopaque {
+    if (global_roaring_allocator) |ally| {
+        return setAllocation(
+            ally.alloc(u8, size) catch return null
+        );
+    }
+    return null;
+}
+
+export fn roaringRealloc(ptr: ?*anyopaque, size: usize) ?*anyopaque {
+    //NOTE: from `man realloc`:
+    // If ptr is NULL, then the call is equivalent to malloc(size), for all
+    //  values of size; if size is equal to zero, and ptr is not NULL, then
+    //  the call is equivalent to free(ptr)
+
+    if (ptr == null) {
+        return roaringMalloc(size);
+    } else if (size == 0) {
+        roaringFree(ptr);
+        return null;
+    } else if (global_roaring_allocator) |ally| {
+        const old = getAllocation(ptr);
+        return setAllocation(
+            ally.realloc(old, size) catch return null
+        );
+    } else
+        return null;
+}
+
+export fn roaringCalloc(n_memb: usize, memb_size: usize) ?*anyopaque {
+    const size = n_memb * memb_size;
+    const ret = roaringMalloc(size);
+    if (ret != null) {
+        var slice = @ptrCast([*]u8, ret);
+        std.mem.set(u8, slice[0..size], 0);
+    }
+    return ret;
+}
+
+export fn roaringFree(ptr: ?*anyopaque) void {
+    // Freeing the null pointer is OK, roaring does it
+    if (ptr == null) return;
+
+    if (global_roaring_allocator) |ally| {
+        ally.free(getRemoveAllocation(ptr));
+    } else
+        @panic("roaringFree was called but global_roaring_allocator is not set");
+}
+
+export fn roaringAlignedMalloc(ptr_align: usize, size: usize) ?*anyopaque {
+    if (global_roaring_allocator) |ally| {
+        return setAllocation(
+            // Allocator's alignment parameter has to be comptime known, so we
+            //  have to do this somewhat awkward transform:
+            switch (ptr_align) {
+                8 => ally.alignedAlloc(u8, 8, size),
+                16 => ally.alignedAlloc(u8, 16, size),
+                // This appears to be the only value that is actually used in roaring.c
+                32 => ally.alignedAlloc(u8, 32, size),
+                else => @panic("Unexpected alignment size")
+            } catch return null
+        );
+    }
+    return null;
+}
+

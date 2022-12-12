@@ -3,8 +3,8 @@ const expect = std.testing.expect;
 const print = std.debug.print;
 const heap = std.heap;
 
-const Bitmap = @import("roaring.zig").Bitmap;
-const allocForFrozen = @import("roaring.zig").allocForFrozen;
+const roaring = @import("roaring.zig");
+const Bitmap = roaring.Bitmap;
 
 test "create + free" {
     var b = try Bitmap.create();
@@ -111,7 +111,7 @@ test "frozen" {
     a.add(37);
 
     const len = a.frozenSizeInBytes();
-    var buf = try allocForFrozen(heap.page_allocator, len);
+    var buf = try roaring.allocForFrozen(heap.page_allocator, len);
     a.frozenSerialize(buf);
     const b = try Bitmap.frozenView(buf[0..]);
     try expect(a.eql(b));
@@ -310,4 +310,18 @@ test "catch 'em all" {
     }
     _ = it.moveEqualOrLarger(10);
     _ = it.read(vals[0..]);
+}
+
+test "custom allocator" {
+    roaring.setAllocator(std.testing.allocator);
+    defer roaring.freeAllocator();
+
+    var b = try Bitmap.create();
+    b.add(6);
+    b.add(7);
+    try expect(b.contains(6));
+    try expect(b.contains(7));
+    b.remove(6);
+    try expect(!b.contains(6));
+    b.free();
 }
