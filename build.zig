@@ -16,6 +16,15 @@ pub fn build(b: *Builder) void {
 
     const test_step = b.step("test", "Run library tests");
     test_step.dependOn(&main_tests.step);
+
+    var example = b.addExecutable("example", "src/example.zig");
+    example.setBuildMode(mode);
+    example.linkLibrary(lib);
+    example.addIncludePath("croaring");
+
+    const run_example = example.run();
+    run_example.step.dependOn(&example.step); // gotta build it first
+    b.step("run-example", "Run the example").dependOn(&run_example.step);
 }
 
 /// Add Roaring Bitmaps to your build process

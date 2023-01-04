@@ -25,6 +25,9 @@ pub const RoaringError = error {
     deserialize_failed,
 };
 
+///
+pub const IteratorFunction = fn(u32, ?*anyopaque) callconv(.C) bool;
+
 // Ensure 1:1 equivalence of roaring_bitmap_t and Bitmap
 comptime {
     if (@sizeOf(Bitmap) != @sizeOf(c.roaring_bitmap_t)) {
@@ -101,13 +104,26 @@ pub const Bitmap = extern struct {
         c.roaring_bitmap_free(conv(self));
     }
 
+    /// Create a Bitmap from a tuple or array of u32s
+    pub fn of(tup: anytype) RoaringError!*Bitmap {
+        const Tup = @TypeOf(tup);
+        const isArray = @typeInfo(Tup) == .Array;
+        if (comptime !std.meta.trait.isTuple(Tup) and !isArray) {
+            @compileError("Bitmap.of takes a tuple or array of u32, got "++@typeName(Tup));
+        }
+
+        // Little trick to convert a tuple or array to a slice
+        const arr: [tup.len]u32 = tup;
+        return fromSlice(&arr);
+    }
+
     ///
     pub fn fromRange(min: u64, max: u64, step: u32) RoaringError!*Bitmap {
         return checkNewBitmap( c.roaring_bitmap_from_range(min, max, step) );
     }
 
     ///
-    pub fn fromSlice(vals: []u32) RoaringError!*Bitmap {
+    pub fn fromSlice(vals: []const u32) RoaringError!*Bitmap {
         return checkNewBitmap( c.roaring_bitmap_of_ptr(vals.len, vals.ptr) );
     }
 
@@ -399,7 +415,13 @@ pub const Bitmap = extern struct {
         return c.roaring_bitmap_size_in_bytes(conv(self));
     }
 
+    /// Write a bitmap to a char buffer.  The output buffer should refer to at least
+    /// `portableSizeInBytes()` bytes of allocated memory.
     ///
+    /// Returns how many bytes were written which should match `portableSizeInBytes()`.
+    ///
+    /// This is meant to be compatible with the Java and Go versions:
+    /// https://github.com/RoaringBitmap/RoaringFormatSpec
     pub fn portableSerialize(self: *const Bitmap, buf: []u8) usize {
         return c.roaring_bitmap_portable_serialize(conv(self), buf.ptr);
     }
@@ -557,13 +579,17 @@ pub const Bitmap = extern struct {
         }
 
         ///
-        pub fn next(self: *Iterator) bool {
-            return c.roaring_advance_uint32_iterator(&self.i);
+        pub fn next(self: *Iterator) ?u32 {
+            // Advance after we've extracted the current value
+            defer _=c.roaring_advance_uint32_iterator(&self.i);
+            return if (self.hasValue()) self.currentValue() else null;
         }
 
         ///
-        pub fn previous(self: *Iterator) bool {
-            return c.roaring_previous_uint32_iterator(&self.i);
+        pub fn previous(self: *Iterator) ?u32 {
+            // Advance after we've extracted the current value
+            defer _=c.roaring_previous_uint32_iterator(&self.i);
+            return if (self.hasValue()) self.currentValue() else null;
         }
 
         ///
@@ -571,10 +597,9 @@ pub const Bitmap = extern struct {
             return c.roaring_move_uint32_iterator_equalorlarger(&self.i, x);
         }
 
-        ///
+        /// Attempts to fill `buffer`.  Returns the number of elements read.
         pub fn read(self: *Iterator, buf: []u32) u32 {
-            return c.roaring_read_uint32_iterator(&self.i,
-                                                buf.ptr, @intCast(u32, buf.len));
+            return c.roaring_read_uint32_iterator(&self.i, buf.ptr, @intCast(u32, buf.len));
         }
     };
 
@@ -583,6 +608,11 @@ pub const Bitmap = extern struct {
         var ret: Iterator = undefined;
         c.roaring_init_iterator(conv(self), &ret.i);
         return ret;
+    }
+
+    ///
+    pub fn iterate(self: *const Bitmap, func: *const IteratorFunction, data: anytype) bool {
+        return c.roaring_iterate(conv(self), func, data);
     }
 };
 
@@ -596,7 +626,9 @@ pub fn allocForFrozen(allocator: std.mem.Allocator, len: usize) ![]align(32)u8 {
     );
 }
 
-/// Sets the global Roaring memory allocator.
+/// Sets the global Roaring memory allocator.  Because of limitations in the CRoaring
+///  API, you should generally only invoke this once.  Call `freeAllocator` to cleanup
+///  related bookkeeping.
 pub fn setAllocator(allocator: std.mem.Allocator) void {
     global_roaring_allocator = allocator;
     c.roaring_init_memory_hook(.{
@@ -610,7 +642,8 @@ pub fn setAllocator(allocator: std.mem.Allocator) void {
 }
 
 /// The global Roaring allocator is used for bookkeeping; this function frees
-///  that memory.
+///  that memory.  The C API does not expose a way to reset memory functions to
+///  their defaults, so you only use this when you're done using Bitmaps.
 pub fn freeAllocator() void {
     if (global_roaring_allocator) |ally| {
         allocations.deinit(ally);

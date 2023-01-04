@@ -16,6 +16,17 @@ test "createWithCapacity + free" {
     b.free();
 }
 
+test "of + free" {
+    // From tuple
+    var b = try Bitmap.of(.{100, 200});
+    b.free();
+
+    // From array
+    var arr = [_]u32{100, 200};
+    var c = try Bitmap.of(arr);
+    c.free();
+}
+
 test "add, remove" {
     var b = try Bitmap.create();
     b.add(6);
@@ -71,22 +82,14 @@ test "iterator" {
     a.add(37);
 
     var it = a.iterator();
-    //while (it.hasValue()) {
-        //print("iterator: {}\n", .{ it.currentValue() });
-        //_ = it.next();
+    //while (it.next()) |val| {
+        //print("iterator: {}\n", .{ val });
     //}
-    try expect(it.hasValue());
-    try expect(it.currentValue() == 7);
-    try expect(it.next());
-    try expect(it.hasValue());
-    try expect(it.currentValue() == 17);
-    try expect(it.next());
-    try expect(it.hasValue());
-    try expect(it.currentValue() == 27);
-    try expect(it.next());
-    try expect(it.hasValue());
-    try expect(it.currentValue() == 37);
-    try expect(!it.next());
+    try expect(it.next().? == 7);
+    try expect(it.next().? == 17);
+    try expect(it.next().? == 27);
+    try expect(it.next().? == 37);
+    try expect(it.next() == null);
     try expect(!it.hasValue());
 
 
@@ -94,11 +97,9 @@ test "iterator" {
     it = a.iterator();
     _ = it.moveEqualOrLarger(16);
     try expect(it.hasValue());
-    try expect(it.currentValue() == 17);
-    try expect(it.previous());
-    try expect(it.hasValue());
-    try expect(it.currentValue() == 7);
-    try expect(!it.previous());
+    try expect(it.previous().? == 17);
+    try expect(it.previous().? == 7);
+    try expect(it.previous() == null);
     try expect(!it.hasValue());
 }
 
@@ -312,6 +313,22 @@ test "catch 'em all" {
     _ = it.read(vals[0..]);
 }
 
+
+fn iterate_sum(value: u32, data: ?*anyopaque) callconv(.C) bool {
+    @ptrCast(*u32, @alignCast(@alignOf(u32), data)).* += value;
+    return true;
+}
+
+test "iterate" {
+    var b = try Bitmap.of(.{1, 2, 3});
+    defer b.free();
+
+    var sum: u32 = 0;
+    _=b.iterate(iterate_sum, &sum);
+    try expect(sum == 6);
+}
+
+// Run this test last: it sets and then unsets the memory allocator
 test "custom allocator" {
     roaring.setAllocator(std.testing.allocator);
     defer roaring.freeAllocator();

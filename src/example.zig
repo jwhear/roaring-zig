@@ -1,44 +1,5 @@
-# Roaring Zig
-This library implements Zig bindings for the [CRoaring library](https://github.com/RoaringBitmap/CRoaring).
+// This is a port of [C example in the CRoaring project](https://github.com/RoaringBitmap/CRoaring#example-c)
 
-## Naming
-Any C function that begins with `roaring_bitmap_` is a method of the `Bitmap` struct, e.g. `roaring_bitmap_add` becomes `Bitmap.add`.  Because `and` and `or` are Zig keywords, the bitwise operators `and`, `or`, and `xor` are consistently prefixed with an underscore, e.g. `Bitmap._or` and `Bitmap._orCardinality`.  All functions have been renamed to Zig's naming convention (camel-case).
-
-## Adding with zigmod
-If you're using the zigmod dependency manager, you can add roaring-zig to your project by adding it as a dependency in your zigmod.yml file:
-
-```yaml
-root_dependencies:
-    - src: git https://github.com/jwhear/roaring-zig
-```
-
-Run `zigmod fetch`, then update your `build.zig` file:
-
-```zig
-const std = @import("std");
-const deps = @import("./deps.zig"); // ADD
-
-pub fn build(b: *std.build.Builder) void {
-    const target = b.standardTargetOptions(.{});
-    const mode = b.standardReleaseOptions();
-
-    const exe = b.addExecutable("my_project", "src/main.zig");
-    exe.setTarget(target);
-    exe.setBuildMode(mode);
-    deps.addAllTo(exe);             // ADD
-    exe.install();
-}
-```
-
-You should now be able to import with
-
-```zig
-const roaring = @import("roaring");
-```
-
-## Example Usage
-This is a port of [C example in the CRoaring project](https://github.com/RoaringBitmap/CRoaring#example-c)
-```zig
 const std = @import("std");
 const roaring = @import("roaring.zig");
 const Bitmap = roaring.Bitmap;
@@ -133,7 +94,7 @@ pub fn main() !void {
     var counter: usize = 0;
     _=r1.iterate(roaring_iterator_sumall, &counter);
 
-    // we can also use Zig-style iterators:
+    // we can also create iterator structs
     counter = 0;
     var it = r1.iterator();
     while (it.next()) |val| {
@@ -169,4 +130,3 @@ export fn roaring_iterator_sumall(value: u32, param: ?*anyopaque) bool {
     @ptrCast(*u32, @alignCast(@alignOf(u32), param)).* += value;
     return true;  // iterate till the end
 }
-```
