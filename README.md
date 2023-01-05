@@ -170,3 +170,25 @@ export fn roaring_iterator_sumall(value: u32, param: ?*anyopaque) bool {
     return true;  // iterate till the end
 }
 ```
+
+## Memory Allocations
+By default CRoaring uses the libc `malloc` and friends to perform memory management.  Operations that return a new bitmap cause at least one allocation, these methods are checked to ensure that the allocation succeeded and will return an error rather than a null pointer.
+
+Operations that add elements to a bitmap *may* cause allocations that could fail.  The C API does not expose a way for this wrapper library to prevent or detect these failures.  In these scenarios CRoaring will probably trip an assert or cause a segfault.
+
+You can provide a Zig allocator for CRoaring to use by calling `roaring.setAllocator`.  This allocator is global and will be used for all CRoaring operations.  It is strongly recommended that you **not** change allocators by calling this multiple times.  The wrapper has to maintain some bookkeeping data regarding the size of allocations, this can be cleaned up by calling `roaring.freeAllocator`.
+
+The `initCleared` and `initWithCapacity` functions allow the user to manage the top-level bitmap memory directly.  However the contents of these containers will still be dynamically allocated with the CRoaring global allocator.
+
+```zig
+var dynamic = try Bitmap.create();
+defer dynamic.free(); // free the contents and the container
+
+var on_the_stack = Bitmap.initCleared(); // this can't fail
+// Do NOT `free` an inited bitmap: CRoaring doesn't own that pointer
+//on_the_stack.free(); // don't do this
+defer on_the_stack.clear(); // the contents are dynamic, free by clearing
+
+var result = dynamic._or(&on_the_stack);
+defer result.free(); // operation results are always dynamic
+```
