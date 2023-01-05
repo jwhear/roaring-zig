@@ -28,6 +28,25 @@ pub const RoaringError = error {
 ///
 pub const IteratorFunction = fn(u32, ?*anyopaque) callconv(.C) bool;
 
+/// Contains the following u32 fields:
+///    n_containers               // number of containers
+///    n_array_containers         // number of array containers
+///    n_run_containers           // number of run containers
+///    n_bitset_containers        // number of bitmap containers
+///    n_values_array_containers  // number of values in array containers
+///    n_values_run_containers    // number of values in run containers
+///    n_values_bitset_containers // number of values in  bitmap containers
+///    n_bytes_array_containers   // number of allocated bytes in array containers
+///    n_bytes_run_containers     // number of allocated bytes in run containers
+///    n_bytes_bitset_containers  // number of allocated bytes in  bitmap containers
+///    max_value                  // the maximal value, undefined if cardinality is zero
+///    min_value                  // the minimal value, undefined if cardinality is zero
+///
+/// And the following u64 fields:
+///    sum_value   // the sum of all values (could be used to compute average)
+///    cardinality // total number of values stored in the bitmap
+pub const Statistics = c.roaring_statistics_t;
+
 // Ensure 1:1 equivalence of roaring_bitmap_t and Bitmap
 comptime {
     if (@sizeOf(Bitmap) != @sizeOf(c.roaring_bitmap_t)) {
@@ -99,7 +118,28 @@ pub const Bitmap = extern struct {
         return checkNewBitmap( c.roaring_bitmap_create_with_capacity(capacity) );
     }
 
+    /// Initialize a roaring bitmap structure in memory controlled by client.
+    /// Capacity is a performance hint for how many "containers" the data will need.
+    /// Can return false if auxiliary allocations fail when capacity greater than 0.
     ///
+    /// Do not use `free` as the bitmap was not allocated by Roaring.  Use `clear`
+    ///  to free the contents of the bitmap.
+    pub fn initWithCapacity(a: *Bitmap, capacity: u32) RoaringError!void {
+        if (!c.roaring_bitmap_init_with_capacity(conv(a), capacity)) return RoaringError.allocation_failed;
+    }
+
+    /// Initialize a roaring bitmap structure in memory controlled by client.
+    /// The bitmap will be in a "clear" state, with no auxiliary allocations.
+    /// Since this performs no allocations, the function will not fail.
+    ///
+    /// Do not use `free` as the bitmap was not allocated by Roaring.  Use `clear`
+    ///  to free the contents of the bitmap.
+    pub fn initCleared(a: *Bitmap) void {
+        a.initWithCapacity(0) catch unreachable;
+    }
+
+    /// Frees the bitmap.  Only use with bitmaps allocated by Roaring. For bitmaps
+    ///  allocated by caller, use `clear`.
     pub fn free(self: *Bitmap) void {
         c.roaring_bitmap_free(conv(self));
     }
@@ -122,7 +162,7 @@ pub const Bitmap = extern struct {
         return checkNewBitmap( c.roaring_bitmap_from_range(min, max, step) );
     }
 
-    ///
+    /// Creates a Bitmap and populates it with integers in `vals`.
     pub fn fromSlice(vals: []const u32) RoaringError!*Bitmap {
         return checkNewBitmap( c.roaring_bitmap_of_ptr(vals.len, vals.ptr) );
     }
@@ -159,14 +199,20 @@ pub const Bitmap = extern struct {
         return c.roaring_bitmap_overwrite(conv(dest), conv(src));
     }
 
+    /// Adds the value 'offset' to each and every value in the bitmap, generating
+    ///  a new bitmap in the process. If offset + element is outside of the
+    ///  range [0,2^32), that the element will be dropped.
+    pub fn addOffset(self: *const Bitmap, offset: i64 ) RoaringError!*Bitmap {
+        return checkNewBitmap( c.roaring_bitmap_add_offset(conv(self), offset) );
+    }
 
     //=========================== Add/remove/test ===========================//
-    ///
+    /// Adds `x` to the bitmap.
     pub fn add(self: *Bitmap, x: u32) void {
         c.roaring_bitmap_add(conv(self), x);
     }
 
-    ///
+    /// Adds all elements of `vals` to the bitmap.
     pub fn addMany(self: *Bitmap, vals: []u32) void {
         c.roaring_bitmap_add_many(conv(self), vals.len, vals.ptr);
     }
@@ -187,12 +233,12 @@ pub const Bitmap = extern struct {
         c.roaring_bitmap_add_range(conv(self), start, end);
     }
 
-    ///
+    /// Removes `x` from the bitmap
     pub fn remove(self: *Bitmap, x: u32) void {
         c.roaring_bitmap_remove(conv(self), x);
     }
 
-    /// Remove value x
+    /// Remove value `x`
     /// Returns true if a new value was removed, false if the value was not existing.
     pub fn removeChecked(self: *Bitmap, x: u32) bool {
         return c.roaring_bitmap_remove_checked(conv(self), x);
@@ -213,12 +259,12 @@ pub const Bitmap = extern struct {
         c.roaring_bitmap_remove_range_closed(conv(self), min, max);
     }
 
-    ///
+    /// Removes all values from the bitmap
     pub fn clear(self: *Bitmap) void {
         c.roaring_bitmap_clear(conv(self));
     }
 
-    ///
+    /// Returns true if the bitmap contains `x`
     pub fn contains(self: *const Bitmap, x: u32) bool {
         return c.roaring_bitmap_contains(conv(self), x);
     }
@@ -229,49 +275,58 @@ pub const Bitmap = extern struct {
         return c.roaring_bitmap_contains_range(conv(self), start, end);
     }
 
-    ///
+    /// Returns true if the bitmap contains no values
     pub fn empty(self: *const Bitmap) bool {
         return c.roaring_bitmap_is_empty(conv(self));
     }
 
 
     //========================== Bitwise operations ==========================//
-    ///
+    /// Returns a new bitmap representing the logical AND of `a` and `b`
     pub fn _and(a: *const Bitmap, b: *const Bitmap) RoaringError!*Bitmap {
         return checkNewBitmap( c.roaring_bitmap_and(conv(a), conv(b)) );
     }
 
-    ///
+    /// Performs a logical AND of `a` and `b`, storing the result in `a`
     pub fn _andInPlace(a: *Bitmap, b: *const Bitmap) void {
         c.roaring_bitmap_and_inplace(conv(a), conv(b));
     }
 
-    ///
+    /// Returns the number of values in the result of ANDing `a` and `b`
     pub fn _andCardinality(a: *const Bitmap, b: *const Bitmap) u64 {
         return c.roaring_bitmap_and_cardinality(conv(a), conv(b));
     }
 
-    ///
+    /// Returns true if `a` and `b` intersect (share least one value)
     pub fn intersect(a: *const Bitmap, b: *const Bitmap) bool {
         return c.roaring_bitmap_intersect(conv(a), conv(b));
     }
 
+    /// Check whether a bitmap and a closed range intersect, the range includes
+    ///  x but not y.
+    pub fn intersectWithRange(self: *const Bitmap, x: u64, y: u64) bool {
+        return c.roaring_bitmap_intersect_with_range(conv(self), x, y);
+    }
+
+    /// Computes the Jaccard index between two bitmaps. (Also known as the Tanimoto
+    ///  distance, or the Jaccard similarity coefficient)
     ///
+    /// The Jaccard index is undefined if both bitmaps are empty.
     pub fn jaccardIndex(a: *const Bitmap, b: *const Bitmap) f64 {
         return c.roaring_bitmap_jaccard_index(conv(a), conv(b));
     }
 
-    ///
+    /// Returns a new bitmap representing the logical OR of `a` and `b`
     pub fn _or(a: *const Bitmap, b: *const Bitmap) RoaringError!*Bitmap {
         return checkNewBitmap( c.roaring_bitmap_or(conv(a), conv(b)) );
     }
 
-    ///
+    /// Performs a logical OR of `a` and `b`, storing the result in `a`
     pub fn _orInPlace(a: *Bitmap, b: *const Bitmap) void {
         c.roaring_bitmap_or_inplace(conv(a), conv(b));
     }
 
-    ///
+    /// Performs a logical OR of all `bitmaps`, returning a new bitmap
     pub fn _orMany(bitmaps: []*const Bitmap) RoaringError!*Bitmap {
         return checkNewBitmap( c.roaring_bitmap_or_many(
                     @intCast(u32, bitmaps.len),
@@ -279,7 +334,8 @@ pub const Bitmap = extern struct {
         ) );
     }
 
-    ///
+    /// Compute the union of `bitmaps` using a heap. This can sometimes be
+    ///  faster than `_orMany()` which uses a naive algorithm.
     pub fn _orManyHeap(bitmaps: []*const Bitmap) RoaringError!*Bitmap {
         return checkNewBitmap( c.roaring_bitmap_or_many_heap(
                     @intCast(u32, bitmaps.len),
@@ -287,18 +343,17 @@ pub const Bitmap = extern struct {
         ) );
     }
 
-    ///
+    /// Returns the number of values in the result of ORing `a` and `b`
     pub fn _orCardinality(a: *const Bitmap, b: *const Bitmap) usize {
         return c.roaring_bitmap_or_cardinality(conv(a), conv(b));
     }
 
-
-    ///
+    /// Returns a new bitmap representing the logical XOR between `a` and `b`
     pub fn _xor(a: *const Bitmap, b: *const Bitmap) RoaringError!*Bitmap {
         return checkNewBitmap( c.roaring_bitmap_xor(conv(a), conv(b)) );
     }
 
-    ///
+    /// Performs a logical XOR of `a` and `b`, storing the result in `a`
     pub fn _xorInPlace(a: *Bitmap, b: *const Bitmap) void {
         c.roaring_bitmap_xor_inplace(conv(a), conv(b));
     }
@@ -472,7 +527,7 @@ pub const Bitmap = extern struct {
     }
 
     //============================== Comparison ==============================//
-    ///
+    /// Returns true if the two bitmaps contain exactly the same elements.
     pub fn eql(a: *const Bitmap, b: *const Bitmap) bool {
         return c.roaring_bitmap_equals(conv(a), conv(b));
     }
@@ -537,6 +592,16 @@ pub const Bitmap = extern struct {
     ///
     pub fn printf(self: *const Bitmap) void {
         c.roaring_bitmap_printf(conv(self));
+    }
+
+    /// (For advanced users.)
+    /// Collect statistics about the bitmap, see roaring_types.h for a description
+    ///  of roaring_statistics_t
+    /// Writes statistics into `stat`.
+    pub fn statistics(self: *const Bitmap) Statistics {
+        var out: Statistics = undefined;
+        c.roaring_bitmap_statistics(conv(self), &out);
+        return out;
     }
 
 

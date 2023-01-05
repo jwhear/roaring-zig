@@ -328,6 +328,52 @@ test "iterate" {
     try expect(sum == 6);
 }
 
+test "addOffset" {
+    var b = try Bitmap.of(.{1, 2, 3});
+    defer b.free();
+
+    var c = try b.addOffset(10);
+    defer c.free();
+
+    try expect(!c.contains(1));
+    try expect(!c.contains(2));
+    try expect(!c.contains(3));
+    try expect(c.contains(11));
+    try expect(c.contains(12));
+    try expect(c.contains(13));
+}
+
+test "intersectWithRange" {
+    var b = try Bitmap.of(.{1, 30, 100});
+    defer b.free();
+
+    try expect(!b.intersectWithRange(0, 1));
+    try expect(b.intersectWithRange(0, 2));
+    try expect(b.intersectWithRange(1, 10));
+    try expect(!b.intersectWithRange(2, 10));
+    try expect(b.intersectWithRange(1, 100));
+}
+
+test "init variants" {
+    var a: Bitmap = undefined;
+    try a.initWithCapacity(10);
+    a.add(450);
+    try expect(a.contains(450));
+    a.clear();
+
+    a.initCleared();
+    a.add(450);
+    try expect(a.contains(450));
+    a.clear();
+}
+
+test "statistics" {
+    var a = try Bitmap.of(.{7, 12, 200});
+    const stats = a.statistics();
+    //std.debug.print("{}\n", .{stats});
+    _=stats;
+}
+
 // Run this test last: it sets and then unsets the memory allocator
 test "custom allocator" {
     roaring.setAllocator(std.testing.allocator);
