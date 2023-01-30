@@ -374,6 +374,19 @@ test "statistics" {
     _=stats;
 }
 
+test "portableDeserializeFrozen" {
+    var a = try Bitmap.fromRange(0, 10, 1);
+    defer a.free();
+
+    var buf : [1024]u8 = undefined;
+    const neededBytes = a.portableSizeInBytes();
+    try expect(neededBytes < buf.len);
+    try expect(neededBytes == a.portableSerialize(buf[0..]));
+    const b = try Bitmap.portableDeserializeFrozen(buf[0..]);
+    defer b.free();
+    try expect(a.eql(b));
+}
+
 // Run this test last: it sets and then unsets the memory allocator
 test "custom allocator" {
     roaring.setAllocator(std.testing.allocator);
@@ -388,3 +401,5 @@ test "custom allocator" {
     try expect(!b.contains(6));
     b.free();
 }
+
+

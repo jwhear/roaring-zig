@@ -495,6 +495,30 @@ pub const Bitmap = extern struct {
         }
     }
 
+    /// Read bitmap from a serialized buffer.
+    ///
+    /// Bitmap returned by this function can be used in all readonly contexts.
+    /// Bitmap must be freed as usual, by calling `free`.
+    /// Underlying buffer must not be freed or modified while it backs any bitmaps.
+    ///
+    /// The function is unsafe in the following ways:
+    /// 1) It may execute unaligned memory accesses.
+    /// 2) A buffer overflow may occure if buf does not point to a valid serialized
+    ///    bitmap.
+    ///
+    /// This is meant to be compatible with the Java and Go versions:
+    /// https://github.com/RoaringBitmap/RoaringFormatSpec
+    ///
+    /// This function is endian-sensitive. If you have a big-endian system (e.g., a mainframe IBM s390x),
+    /// the data format is going to be big-endian and not compatible with little-endian systems.
+    pub fn portableDeserializeFrozen(buf: []const u8) RoaringError! *Bitmap {
+        if (c.roaring_bitmap_portable_deserialize_frozen(buf.ptr)) |b| {
+            return conv(b);
+        } else {
+            return RoaringError.deserialize_failed;
+        }
+    }
+
     ///
     pub fn portableDeserializeSize(buf: []const u8) usize {
         return c.roaring_bitmap_portable_deserialize_size(buf.ptr, buf.len);
