@@ -14,9 +14,9 @@ root_dependencies:
 
 Run `zigmod fetch`, then update your `build.zig` file:
 
-```zig
+```diff
 const std = @import("std");
-const deps = @import("./deps.zig"); // ADD
++const deps = @import("./deps.zig");
 
 pub fn build(b: *std.build.Builder) void {
     const target = b.standardTargetOptions(.{});
@@ -25,7 +25,7 @@ pub fn build(b: *std.build.Builder) void {
     const exe = b.addExecutable("my_project", "src/main.zig");
     exe.setTarget(target);
     exe.setBuildMode(mode);
-    deps.addAllTo(exe);             // ADD
++   deps.addAllTo(exe);
     exe.install();
 }
 ```
