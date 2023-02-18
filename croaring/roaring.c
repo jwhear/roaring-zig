@@ -1,5 +1,5 @@
 // !!! DO NOT EDIT - THIS IS AN AUTO-GENERATED FILE !!!
-// Created by amalgamation.sh on 2023-02-06T21:41:21Z
+// Created by amalgamation.sh on 2023-02-18T21:16:56Z
 
 /*
  * The CRoaring project is under a dual license (Apache/MIT).
@@ -6676,7 +6676,7 @@ static inline container_t *container_remove_range(
 
             if (result_cardinality == 0) {
                 return NULL;
-            } else if (result_cardinality < DEFAULT_MAX_SIZE) {
+            } else if (result_cardinality <= DEFAULT_MAX_SIZE) {
                 *result_type = ARRAY_CONTAINER_TYPE;
                 bitset_reset_range(bitset->words, min, max+1);
                 bitset->cardinality = result_cardinality;
@@ -6715,15 +6715,7 @@ static inline container_t *container_remove_range(
             }
 
             run_container_remove_range(run, min, max);
-
-            if (run_container_serialized_size_in_bytes(run->n_runs) <=
-                    bitset_container_serialized_size_in_bytes()) {
-                *result_type = RUN_CONTAINER_TYPE;
-                return run;
-            } else {
-                *result_type = BITSET_CONTAINER_TYPE;
-                return bitset_container_from_run(run);
-            }
+            return convert_run_to_efficient_container(run, result_type);
         }
         default:
             __builtin_unreachable();
@@ -11035,8 +11027,7 @@ bool roaring_bitmap_contains_range(const roaring_bitmap_t *r, uint64_t range_sta
     }
     int32_t is = ra_get_index(&r->high_low_container, hb_rs);
     int32_t ie = ra_get_index(&r->high_low_container, hb_re);
-    ie = (ie < 0 ? -ie - 1 : ie);
-    if ((is < 0) || ((ie - is) != span) || ie >= hlc_sz) {
+    if ((ie < 0) || (is < 0) || ((ie - is) != span) || ie >= hlc_sz) {
        return false;
     }
     const uint32_t lb_rs = range_start & 0xFFFF;
@@ -13207,7 +13198,7 @@ bool run_container_is_subset_array(const run_container_t* container1,
                                  container2->cardinality, start);
         stop_pos = advanceUntil(container2->array, stop_pos,
                                 container2->cardinality, stop);
-        if (start_pos == container2->cardinality) {
+        if (stop_pos == container2->cardinality) {
             return false;
         } else if (stop_pos - start_pos != stop - start ||
                    container2->array[start_pos] != start ||
