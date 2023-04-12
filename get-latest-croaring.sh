@@ -5,7 +5,8 @@ set -eou pipefail
 
 repo="/tmp/CRoaring"
 
-git clone https://github.com/RoaringBitmap/CRoaring.git $repo
+git clone --depth 1 https://github.com/RoaringBitmap/CRoaring.git $repo
+rm -rf $repo/.git
 cd croaring
 $repo/amalgamation.sh
 
