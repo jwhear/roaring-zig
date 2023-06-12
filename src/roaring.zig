@@ -9,14 +9,13 @@
 /// So here's what I did: I reimplement the roaring_bitmap_t type as
 ///  Bitmap (really easy, just a single member) and then do compile-time
 ///  @ptrCast calls (wrapped as from/to with const variants).
-
 const c = @cImport({
     @cInclude("roaring.h");
 });
 const std = @import("std");
 
 ///
-pub const RoaringError = error {
+pub const RoaringError = error{
     ///
     allocation_failed,
     ///
@@ -26,7 +25,7 @@ pub const RoaringError = error {
 };
 
 ///
-pub const IteratorFunction = fn(u32, ?*anyopaque) callconv(.C) bool;
+pub const IteratorFunction = fn (u32, ?*anyopaque) callconv(.C) bool;
 
 /// Contains the following u32 fields:
 ///    n_containers               // number of containers
@@ -86,11 +85,10 @@ pub const Bitmap = extern struct {
         info.Pointer.child = switch (info.Pointer.child) {
             c.roaring_bitmap_t => Bitmap,
             Bitmap => c.roaring_bitmap_t,
-            else => unreachable // don't call this with anything else
+            else => unreachable, // don't call this with anything else
         };
         return @Type(info); // turn the modified TypeInfo into a type
     }
-
 
     //============================= Create/free =============================//
 
@@ -107,7 +105,7 @@ pub const Bitmap = extern struct {
     /// Returns an error if the allocation fails.
     /// Client is responsible for calling `free()`.
     pub fn create() RoaringError!*Bitmap {
-        return checkNewBitmap( c.roaring_bitmap_create() );
+        return checkNewBitmap(c.roaring_bitmap_create());
     }
 
     /// Dynamically allocates a new bitmap (initially empty).
@@ -115,7 +113,7 @@ pub const Bitmap = extern struct {
     /// Capacity is a performance hint for how many "containers" the data will need.
     /// Client is responsible for calling `free()`.
     pub fn createWithCapacity(capacity: u32) RoaringError!*Bitmap {
-        return checkNewBitmap( c.roaring_bitmap_create_with_capacity(capacity) );
+        return checkNewBitmap(c.roaring_bitmap_create_with_capacity(capacity));
     }
 
     /// Initialize a roaring bitmap structure in memory controlled by client.
@@ -149,7 +147,7 @@ pub const Bitmap = extern struct {
         const Tup = @TypeOf(tup);
         const isArray = @typeInfo(Tup) == .Array;
         if (comptime !std.meta.trait.isTuple(Tup) and !isArray) {
-            @compileError("Bitmap.of takes a tuple or array of u32, got "++@typeName(Tup));
+            @compileError("Bitmap.of takes a tuple or array of u32, got " ++ @typeName(Tup));
         }
 
         // Little trick to convert a tuple or array to a slice
@@ -159,12 +157,12 @@ pub const Bitmap = extern struct {
 
     ///
     pub fn fromRange(min: u64, max: u64, step: u32) RoaringError!*Bitmap {
-        return checkNewBitmap( c.roaring_bitmap_from_range(min, max, step) );
+        return checkNewBitmap(c.roaring_bitmap_from_range(min, max, step));
     }
 
     /// Creates a Bitmap and populates it with integers in `vals`.
     pub fn fromSlice(vals: []const u32) RoaringError!*Bitmap {
-        return checkNewBitmap( c.roaring_bitmap_of_ptr(vals.len, vals.ptr) );
+        return checkNewBitmap(c.roaring_bitmap_of_ptr(vals.len, vals.ptr));
     }
 
     ///
@@ -186,7 +184,7 @@ pub const Bitmap = extern struct {
     /// Copies a bitmap (this does memory allocation).
     /// The caller is responsible for memory management.
     pub fn copy(self: *const Bitmap) RoaringError!*Bitmap {
-        return checkNewBitmap( c.roaring_bitmap_copy(conv(self)) );
+        return checkNewBitmap(c.roaring_bitmap_copy(conv(self)));
     }
 
     /// Copies a bitmap from src to dest. It is assumed that the pointer dest
@@ -202,8 +200,8 @@ pub const Bitmap = extern struct {
     /// Adds the value 'offset' to each and every value in the bitmap, generating
     ///  a new bitmap in the process. If offset + element is outside of the
     ///  range [0,2^32), that the element will be dropped.
-    pub fn addOffset(self: *const Bitmap, offset: i64 ) RoaringError!*Bitmap {
-        return checkNewBitmap( c.roaring_bitmap_add_offset(conv(self), offset) );
+    pub fn addOffset(self: *const Bitmap, offset: i64) RoaringError!*Bitmap {
+        return checkNewBitmap(c.roaring_bitmap_add_offset(conv(self), offset));
     }
 
     //=========================== Add/remove/test ===========================//
@@ -280,11 +278,10 @@ pub const Bitmap = extern struct {
         return c.roaring_bitmap_is_empty(conv(self));
     }
 
-
     //========================== Bitwise operations ==========================//
     /// Returns a new bitmap representing the logical AND of `a` and `b`
     pub fn _and(a: *const Bitmap, b: *const Bitmap) RoaringError!*Bitmap {
-        return checkNewBitmap( c.roaring_bitmap_and(conv(a), conv(b)) );
+        return checkNewBitmap(c.roaring_bitmap_and(conv(a), conv(b)));
     }
 
     /// Performs a logical AND of `a` and `b`, storing the result in `a`
@@ -318,7 +315,7 @@ pub const Bitmap = extern struct {
 
     /// Returns a new bitmap representing the logical OR of `a` and `b`
     pub fn _or(a: *const Bitmap, b: *const Bitmap) RoaringError!*Bitmap {
-        return checkNewBitmap( c.roaring_bitmap_or(conv(a), conv(b)) );
+        return checkNewBitmap(c.roaring_bitmap_or(conv(a), conv(b)));
     }
 
     /// Performs a logical OR of `a` and `b`, storing the result in `a`
@@ -328,19 +325,13 @@ pub const Bitmap = extern struct {
 
     /// Performs a logical OR of all `bitmaps`, returning a new bitmap
     pub fn _orMany(bitmaps: []*const Bitmap) RoaringError!*Bitmap {
-        return checkNewBitmap( c.roaring_bitmap_or_many(
-                    @intCast(u32, bitmaps.len),
-                    @ptrCast([*c][*c]const c.roaring_bitmap_t, bitmaps.ptr)
-        ) );
+        return checkNewBitmap(c.roaring_bitmap_or_many(@intCast(u32, bitmaps.len), @ptrCast([*c][*c]const c.roaring_bitmap_t, bitmaps.ptr)));
     }
 
     /// Compute the union of `bitmaps` using a heap. This can sometimes be
     ///  faster than `_orMany()` which uses a naive algorithm.
     pub fn _orManyHeap(bitmaps: []*const Bitmap) RoaringError!*Bitmap {
-        return checkNewBitmap( c.roaring_bitmap_or_many_heap(
-                    @intCast(u32, bitmaps.len),
-                    @ptrCast([*c][*c]const c.roaring_bitmap_t, bitmaps.ptr)
-        ) );
+        return checkNewBitmap(c.roaring_bitmap_or_many_heap(@intCast(u32, bitmaps.len), @ptrCast([*c][*c]const c.roaring_bitmap_t, bitmaps.ptr)));
     }
 
     /// Returns the number of values in the result of ORing `a` and `b`
@@ -350,7 +341,7 @@ pub const Bitmap = extern struct {
 
     /// Returns a new bitmap representing the logical XOR between `a` and `b`
     pub fn _xor(a: *const Bitmap, b: *const Bitmap) RoaringError!*Bitmap {
-        return checkNewBitmap( c.roaring_bitmap_xor(conv(a), conv(b)) );
+        return checkNewBitmap(c.roaring_bitmap_xor(conv(a), conv(b)));
     }
 
     /// Performs a logical XOR of `a` and `b`, storing the result in `a`
@@ -365,10 +356,7 @@ pub const Bitmap = extern struct {
 
     ///
     pub fn _xorMany(bitmaps: []*const Bitmap) RoaringError!*Bitmap {
-        return checkNewBitmap(c.roaring_bitmap_xor_many(
-                    @intCast(u32, bitmaps.len),
-                    @ptrCast([*c][*c]const c.roaring_bitmap_t, bitmaps.ptr)
-        ));
+        return checkNewBitmap(c.roaring_bitmap_xor_many(@intCast(u32, bitmaps.len), @ptrCast([*c][*c]const c.roaring_bitmap_t, bitmaps.ptr)));
     }
 
     ///
@@ -395,7 +383,6 @@ pub const Bitmap = extern struct {
     pub fn flipInPlace(self: *Bitmap, start: u64, end: u64) void {
         c.roaring_bitmap_flip_inplace(conv(self), start, end);
     }
-
 
     //======================= Lazy bitwise operations =======================//
     /// (For expert users who seek high performance.)
@@ -453,17 +440,17 @@ pub const Bitmap = extern struct {
         c.roaring_bitmap_repair_after_lazy(conv(a));
     }
 
-
     //============================ Serialization ============================//
     ///
     pub fn serialize(self: *const Bitmap, buf: []u8) usize {
         return c.roaring_bitmap_serialize(conv(self), buf.ptr);
     }
 
-    ///
+    /// Uses `roaring_bitmap_deserialize_safe` under the hood
     pub fn deserialize(buf: []const u8) RoaringError!*Bitmap {
-        return checkNewBitmap(c.roaring_bitmap_deserialize(buf.ptr));
+        return checkNewBitmap(c.roaring_bitmap_deserialize_safe(buf.ptr, buf.len));
     }
+    pub const deserializeSafe = deserialize;
 
     ///
     pub fn sizeInBytes(self: *const Bitmap) usize {
@@ -487,7 +474,7 @@ pub const Bitmap = extern struct {
     }
 
     ///
-    pub fn portableDeserializeSafe(buf: []const u8) RoaringError! *Bitmap {
+    pub fn portableDeserializeSafe(buf: []const u8) RoaringError!*Bitmap {
         if (c.roaring_bitmap_portable_deserialize_safe(buf.ptr, buf.len)) |b| {
             return conv(b);
         } else {
@@ -511,7 +498,7 @@ pub const Bitmap = extern struct {
     ///
     /// This function is endian-sensitive. If you have a big-endian system (e.g., a mainframe IBM s390x),
     /// the data format is going to be big-endian and not compatible with little-endian systems.
-    pub fn portableDeserializeFrozen(buf: []const u8) RoaringError! *Bitmap {
+    pub fn portableDeserializeFrozen(buf: []const u8) RoaringError!*Bitmap {
         if (c.roaring_bitmap_portable_deserialize_frozen(buf.ptr)) |b| {
             return conv(b);
         } else {
@@ -529,7 +516,6 @@ pub const Bitmap = extern struct {
         return c.roaring_bitmap_portable_size_in_bytes(conv(self));
     }
 
-
     //========================= Frozen functionality =========================//
     ///
     pub fn frozenSizeInBytes(self: *const Bitmap) usize {
@@ -545,9 +531,8 @@ pub const Bitmap = extern struct {
     ///  free or alter the bytes in `buf` while the view bitmap is alive.
     /// `buf` must be 32-byte aligned and exactly the length that was reported
     ///  by `frozenSizeInBytes`.
-    pub fn frozenView(buf: []align(32)u8) RoaringError ! *const Bitmap {
-        return conv( c.roaring_bitmap_frozen_view(buf.ptr, buf.len)
-                     orelse return RoaringError.frozen_view_failed );
+    pub fn frozenView(buf: []align(32) u8) RoaringError!*const Bitmap {
+        return conv(c.roaring_bitmap_frozen_view(buf.ptr, buf.len) orelse return RoaringError.frozen_view_failed);
     }
 
     //============================== Comparison ==============================//
@@ -566,7 +551,6 @@ pub const Bitmap = extern struct {
     pub fn isStrictSubset(a: *const Bitmap, b: *const Bitmap) bool {
         return c.roaring_bitmap_is_strict_subset(conv(a), conv(b));
     }
-
 
     //============================ Miscellaneous ============================//
     ///
@@ -628,7 +612,6 @@ pub const Bitmap = extern struct {
         return out;
     }
 
-
     //============================= Optimization =============================//
     /// Remove run-length encoding even when it is more space efficient.
     /// Return whether a change was applied.
@@ -651,7 +634,6 @@ pub const Bitmap = extern struct {
         return c.roaring_bitmap_shrink_to_fit(conv(self));
     }
 
-
     //============================== Iteration ==============================//
     ///
     const Iterator = struct {
@@ -670,14 +652,14 @@ pub const Bitmap = extern struct {
         ///
         pub fn next(self: *Iterator) ?u32 {
             // Advance after we've extracted the current value
-            defer _=c.roaring_advance_uint32_iterator(&self.i);
+            defer _ = c.roaring_advance_uint32_iterator(&self.i);
             return if (self.hasValue()) self.currentValue() else null;
         }
 
         ///
         pub fn previous(self: *Iterator) ?u32 {
             // Advance after we've extracted the current value
-            defer _=c.roaring_previous_uint32_iterator(&self.i);
+            defer _ = c.roaring_previous_uint32_iterator(&self.i);
             return if (self.hasValue()) self.currentValue() else null;
         }
 
@@ -707,12 +689,10 @@ pub const Bitmap = extern struct {
 
 /// Helper function to get properly aligned and sized buffers for
 ///  frozenSerialize/frozenView
-pub fn allocForFrozen(allocator: std.mem.Allocator, len: usize) ![]align(32)u8 {
+pub fn allocForFrozen(allocator: std.mem.Allocator, len: usize) ![]align(32) u8 {
     // The buffer must be 32-byte aligned and sized exactly
-    return allocator.alignedAlloc(u8,
-        32, // alignment
-        len
-    );
+    return allocator.alignedAlloc(u8, 32, // alignment
+        len);
 }
 
 /// Sets the global Roaring memory allocator.  Because of limitations in the CRoaring
@@ -721,12 +701,12 @@ pub fn allocForFrozen(allocator: std.mem.Allocator, len: usize) ![]align(32)u8 {
 pub fn setAllocator(allocator: std.mem.Allocator) void {
     global_roaring_allocator = allocator;
     c.roaring_init_memory_hook(.{
-        .malloc  = roaringMalloc,
+        .malloc = roaringMalloc,
         .realloc = roaringRealloc,
-        .calloc  = roaringCalloc,
-        .free    = roaringFree,
+        .calloc = roaringCalloc,
+        .free = roaringFree,
         .aligned_malloc = roaringAlignedMalloc,
-        .aligned_free   = roaringFree,  // don't need a special implementation
+        .aligned_free = roaringFree, // don't need a special implementation
     });
 }
 
@@ -762,20 +742,17 @@ fn setAllocation(mem: []u8) ?*anyopaque {
 
 fn getAllocation(ptr: ?*anyopaque) []u8 {
     var len = allocations.get(ptr) orelse @panic("getAllocation cannot find pointer");
-    return @ptrCast([*]u8, ptr)[0 .. len];
+    return @ptrCast([*]u8, ptr)[0..len];
 }
 
 fn getRemoveAllocation(ptr: ?*anyopaque) []u8 {
     var kv = allocations.fetchRemove(ptr) orelse @panic("removeAllocationn cannot find pointer");
-    return @ptrCast([*c]u8, ptr)[0 .. kv.value];
+    return @ptrCast([*c]u8, ptr)[0..kv.value];
 }
-
 
 export fn roaringMalloc(size: usize) ?*anyopaque {
     if (global_roaring_allocator) |ally| {
-        return setAllocation(
-            ally.alloc(u8, size) catch return null
-        );
+        return setAllocation(ally.alloc(u8, size) catch return null);
     }
     return null;
 }
@@ -793,11 +770,8 @@ export fn roaringRealloc(ptr: ?*anyopaque, size: usize) ?*anyopaque {
         return null;
     } else if (global_roaring_allocator) |ally| {
         const old = getAllocation(ptr);
-        return setAllocation(
-            ally.realloc(old, size) catch return null
-        );
-    } else
-        return null;
+        return setAllocation(ally.realloc(old, size) catch return null);
+    } else return null;
 }
 
 export fn roaringCalloc(n_memb: usize, memb_size: usize) ?*anyopaque {
@@ -816,24 +790,21 @@ export fn roaringFree(ptr: ?*anyopaque) void {
 
     if (global_roaring_allocator) |ally| {
         ally.free(getRemoveAllocation(ptr));
-    } else
-        @panic("roaringFree was called but global_roaring_allocator is not set");
+    } else @panic("roaringFree was called but global_roaring_allocator is not set");
 }
 
 export fn roaringAlignedMalloc(ptr_align: usize, size: usize) ?*anyopaque {
     if (global_roaring_allocator) |ally| {
         return setAllocation(
-            // Allocator's alignment parameter has to be comptime known, so we
-            //  have to do this somewhat awkward transform:
-            switch (ptr_align) {
-                8 => ally.alignedAlloc(u8, 8, size),
-                16 => ally.alignedAlloc(u8, 16, size),
-                // This appears to be the only value that is actually used in roaring.c
-                32 => ally.alignedAlloc(u8, 32, size),
-                else => @panic("Unexpected alignment size")
-            } catch return null
-        );
+        // Allocator's alignment parameter has to be comptime known, so we
+        //  have to do this somewhat awkward transform:
+        switch (ptr_align) {
+            8 => ally.alignedAlloc(u8, 8, size),
+            16 => ally.alignedAlloc(u8, 16, size),
+            // This appears to be the only value that is actually used in roaring.c
+            32 => ally.alignedAlloc(u8, 32, size),
+            else => @panic("Unexpected alignment size"),
+        } catch return null);
     }
     return null;
 }
-
