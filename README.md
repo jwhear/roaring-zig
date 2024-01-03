@@ -4,8 +4,9 @@ This library implements Zig bindings for the [CRoaring library](https://github.c
 ## Naming
 Any C function that begins with `roaring_bitmap_` is a method of the `Bitmap` struct, e.g. `roaring_bitmap_add` becomes `Bitmap.add`.  Because `and` and `or` are Zig keywords, the bitwise operators `and`, `or`, and `xor` are consistently prefixed with an underscore, e.g. `Bitmap._or` and `Bitmap._orCardinality`.  All functions have been renamed to Zig's naming convention (camel-case).
 
-## std.Build breaking changes
-On January 31st, [this pull request](https://github.com/ziglang/zig/pull/14498) introduced breaking changes to the zig build system.  If you are **not** using a Zig daily build from after that point, you will need to checkout the `og_build` tag which uses the old build system.
+## Versions
+Current CRoaring version: 2.1.1
+Current Zig version: 0.11.0
 
 ## Adding with zigmod
 If you're using the zigmod dependency manager, you can add roaring-zig to your project by adding it as a dependency in your zigmod.yml file:
@@ -169,7 +170,8 @@ pub fn main() !void {
 }
 
 export fn roaring_iterator_sumall(value: u32, param: ?*anyopaque) bool {
-    @ptrCast(*u32, @alignCast(@alignOf(u32), param)).* += value;
+    var ptr: *u32 = @ptrCast(@alignCast(param));
+    ptr.* += value;
     return true;  // iterate till the end
 }
 ```
