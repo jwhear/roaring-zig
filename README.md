@@ -6,6 +6,7 @@ Any C function that begins with `roaring_bitmap_` is a method of the `Bitmap` st
 
 ## Versions
 Current CRoaring version: 2.1.1
+
 Current Zig version: 0.11.0
 
 ## Adding with zigmod
