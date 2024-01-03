@@ -73,7 +73,7 @@ pub const Bitmap = extern struct {
     ///  of copy, make sure you own the memory and know what other pointers
     ///  to the same data are out there.
     pub fn conv(bitmap: anytype) convType(@TypeOf(bitmap)) {
-        return @ptrCast(convType(@TypeOf(bitmap)), bitmap);
+        return @ptrCast(bitmap);
     }
 
     // Support function for conversion.  Given an input type, produces the
@@ -325,13 +325,13 @@ pub const Bitmap = extern struct {
 
     /// Performs a logical OR of all `bitmaps`, returning a new bitmap
     pub fn _orMany(bitmaps: []*const Bitmap) RoaringError!*Bitmap {
-        return checkNewBitmap(c.roaring_bitmap_or_many(@intCast(u32, bitmaps.len), @ptrCast([*c][*c]const c.roaring_bitmap_t, bitmaps.ptr)));
+        return checkNewBitmap(c.roaring_bitmap_or_many(@as(u32, @intCast(bitmaps.len)), @as([*c][*c]const c.roaring_bitmap_t, @ptrCast(bitmaps.ptr))));
     }
 
     /// Compute the union of `bitmaps` using a heap. This can sometimes be
     ///  faster than `_orMany()` which uses a naive algorithm.
     pub fn _orManyHeap(bitmaps: []*const Bitmap) RoaringError!*Bitmap {
-        return checkNewBitmap(c.roaring_bitmap_or_many_heap(@intCast(u32, bitmaps.len), @ptrCast([*c][*c]const c.roaring_bitmap_t, bitmaps.ptr)));
+        return checkNewBitmap(c.roaring_bitmap_or_many_heap(@as(u32, @intCast(bitmaps.len)), @as([*c][*c]const c.roaring_bitmap_t, @ptrCast(bitmaps.ptr))));
     }
 
     /// Returns the number of values in the result of ORing `a` and `b`
@@ -356,7 +356,7 @@ pub const Bitmap = extern struct {
 
     ///
     pub fn _xorMany(bitmaps: []*const Bitmap) RoaringError!*Bitmap {
-        return checkNewBitmap(c.roaring_bitmap_xor_many(@intCast(u32, bitmaps.len), @ptrCast([*c][*c]const c.roaring_bitmap_t, bitmaps.ptr)));
+        return checkNewBitmap(c.roaring_bitmap_xor_many(@as(u32, @intCast(bitmaps.len)), @as([*c][*c]const c.roaring_bitmap_t, @ptrCast(bitmaps.ptr))));
     }
 
     ///
@@ -670,7 +670,7 @@ pub const Bitmap = extern struct {
 
         /// Attempts to fill `buffer`.  Returns the number of elements read.
         pub fn read(self: *Iterator, buf: []u32) u32 {
-            return c.roaring_read_uint32_iterator(&self.i, buf.ptr, @intCast(u32, buf.len));
+            return c.roaring_read_uint32_iterator(&self.i, buf.ptr, @as(u32, @intCast(buf.len)));
         }
     };
 
@@ -733,7 +733,7 @@ var allocations = std.AutoHashMapUnmanaged(?*anyopaque, usize){};
 
 fn setAllocation(mem: []u8) ?*anyopaque {
     if (global_roaring_allocator) |ally| {
-        const ptr = @ptrCast(?*anyopaque, mem.ptr);
+        const ptr = @as(?*anyopaque, @ptrCast(mem.ptr));
         allocations.put(ally, ptr, mem.len) catch return null;
         return ptr;
     }
@@ -742,12 +742,12 @@ fn setAllocation(mem: []u8) ?*anyopaque {
 
 fn getAllocation(ptr: ?*anyopaque) []u8 {
     var len = allocations.get(ptr) orelse @panic("getAllocation cannot find pointer");
-    return @ptrCast([*]u8, ptr)[0..len];
+    return @as([*]u8, @ptrCast(ptr))[0..len];
 }
 
 fn getRemoveAllocation(ptr: ?*anyopaque) []u8 {
     var kv = allocations.fetchRemove(ptr) orelse @panic("removeAllocationn cannot find pointer");
-    return @ptrCast([*c]u8, ptr)[0..kv.value];
+    return @as([*c]u8, @ptrCast(ptr))[0..kv.value];
 }
 
 export fn roaringMalloc(size: usize) ?*anyopaque {
@@ -778,8 +778,8 @@ export fn roaringCalloc(n_memb: usize, memb_size: usize) ?*anyopaque {
     const size = n_memb * memb_size;
     const ret = roaringMalloc(size);
     if (ret != null) {
-        var slice = @ptrCast([*]u8, ret);
-        std.mem.set(u8, slice[0..size], 0);
+        var slice = @as([*]u8, @ptrCast(ret));
+        @memset(slice[0..size], 0);
     }
     return ret;
 }

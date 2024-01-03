@@ -18,11 +18,11 @@ test "createWithCapacity + free" {
 
 test "of + free" {
     // From tuple
-    var b = try Bitmap.of(.{100, 200});
+    var b = try Bitmap.of(.{ 100, 200 });
     b.free();
 
     // From array
-    var arr = [_]u32{100, 200};
+    var arr = [_]u32{ 100, 200 };
     var c = try Bitmap.of(arr);
     c.free();
 }
@@ -53,7 +53,6 @@ test "and, or" {
     try expect(andResult.contains(7));
     try expect(andResult.cardinality() == 1);
 
-
     var orResult = try a._or(b);
     defer orResult.free();
     try expect(orResult.contains(2));
@@ -62,9 +61,9 @@ test "and, or" {
 }
 
 test "or many" {
-    var bitmaps : [3]*const Bitmap = undefined;
-    bitmaps[0] = try Bitmap.fromRange(1,      20, 1);
-    bitmaps[1] = try Bitmap.fromRange(101,   120, 1);
+    var bitmaps: [3]*const Bitmap = undefined;
+    bitmaps[0] = try Bitmap.fromRange(1, 20, 1);
+    bitmaps[1] = try Bitmap.fromRange(101, 120, 1);
     bitmaps[2] = try Bitmap.fromRange(1001, 1020, 1);
 
     const ret = try Bitmap._orMany(bitmaps[0..]);
@@ -83,7 +82,7 @@ test "iterator" {
 
     var it = a.iterator();
     //while (it.next()) |val| {
-        //print("iterator: {}\n", .{ val });
+    //print("iterator: {}\n", .{ val });
     //}
     try expect(it.next().? == 7);
     try expect(it.next().? == 17);
@@ -91,7 +90,6 @@ test "iterator" {
     try expect(it.next().? == 37);
     try expect(it.next() == null);
     try expect(!it.hasValue());
-
 
     //// Let's try starting somewhere else and working backwards
     it = a.iterator();
@@ -122,7 +120,7 @@ test "portable serialize/deserialize" {
     var a = try Bitmap.fromRange(0, 10, 1);
     defer a.free();
 
-    var buf : [1024]u8 = undefined;
+    var buf: [1024]u8 = undefined;
     const neededBytes = a.portableSizeInBytes();
     try expect(neededBytes < buf.len);
     try expect(neededBytes == a.portableSerialize(buf[0..]));
@@ -150,7 +148,7 @@ test "select, rank" {
     var a = try Bitmap.fromRange(1, 10, 1);
     defer a.free();
 
-    var third : u32 = 0;
+    var third: u32 = 0;
     try expect(a.select(2, &third)); // rank counting starts at 0
     try expect(third == 3);
 
@@ -232,15 +230,15 @@ test "catch 'em all" {
 
     (try a._or(b)).free();
     a._orInPlace(b);
-    (try Bitmap._orMany(&[_]*Bitmap{b, c, d})).free();
-    (try Bitmap._orManyHeap(&[_]*Bitmap{b, c, d})).free();
+    var other_bitmaps = [_]*const Bitmap{ b, c, d };
+    (try Bitmap._orMany(&other_bitmaps)).free();
+    (try Bitmap._orManyHeap(&other_bitmaps)).free();
     _ = a._orCardinality(b);
-
 
     (try a._xor(b)).free();
     a._xorInPlace(b);
     _ = a._xorCardinality(b);
-    (try Bitmap._xorMany(&[_]*Bitmap{b, c, d})).free();
+    (try Bitmap._xorMany(&other_bitmaps)).free();
 
     (try a._andnot(b)).free();
     a._andnotInPlace(b);
@@ -254,7 +252,6 @@ test "catch 'em all" {
     (try a._xorLazy(b)).free();
     a._xorLazyInPlace(b);
     a.repairAfterLazy();
-
 
     var buf: [1024]u8 align(32) = undefined;
     try expect(c.sizeInBytes() <= buf.len);
@@ -272,11 +269,10 @@ test "catch 'em all" {
 
     try expect(Bitmap.portableDeserializeSize(buf[0..]) < buf.len);
 
-
     len = c.frozenSizeInBytes();
     try expect(len < buf.len);
     c.frozenSerialize(buf[0..]);
-    var view : *const Bitmap = try Bitmap.frozenView(buf[0..len]);
+    var view: *const Bitmap = try Bitmap.frozenView(buf[0..len]);
     try expect(c.eql(view));
 
     var f = try Bitmap.fromRange(10, 50, 1);
@@ -313,23 +309,23 @@ test "catch 'em all" {
     _ = it.read(vals[0..]);
 }
 
-
 fn iterate_sum(value: u32, data: ?*anyopaque) callconv(.C) bool {
-    @ptrCast(*u32, @alignCast(@alignOf(u32), data)).* += value;
+    var ptr: *u32 = @ptrCast(@alignCast(data));
+    ptr.* += value;
     return true;
 }
 
 test "iterate" {
-    var b = try Bitmap.of(.{1, 2, 3});
+    var b = try Bitmap.of(.{ 1, 2, 3 });
     defer b.free();
 
     var sum: u32 = 0;
-    _=b.iterate(iterate_sum, &sum);
+    _ = b.iterate(iterate_sum, &sum);
     try expect(sum == 6);
 }
 
 test "addOffset" {
-    var b = try Bitmap.of(.{1, 2, 3});
+    var b = try Bitmap.of(.{ 1, 2, 3 });
     defer b.free();
 
     var c = try b.addOffset(10);
@@ -344,7 +340,7 @@ test "addOffset" {
 }
 
 test "intersectWithRange" {
-    var b = try Bitmap.of(.{1, 30, 100});
+    var b = try Bitmap.of(.{ 1, 30, 100 });
     defer b.free();
 
     try expect(!b.intersectWithRange(0, 1));
@@ -368,17 +364,17 @@ test "init variants" {
 }
 
 test "statistics" {
-    var a = try Bitmap.of(.{7, 12, 200});
+    var a = try Bitmap.of(.{ 7, 12, 200 });
     const stats = a.statistics();
     //std.debug.print("{}\n", .{stats});
-    _=stats;
+    _ = stats;
 }
 
 test "portableDeserializeFrozen" {
     var a = try Bitmap.fromRange(0, 10, 1);
     defer a.free();
 
-    var buf : [1024]u8 = undefined;
+    var buf: [1024]u8 = undefined;
     const neededBytes = a.portableSizeInBytes();
     try expect(neededBytes < buf.len);
     try expect(neededBytes == a.portableSerialize(buf[0..]));
@@ -401,5 +397,3 @@ test "custom allocator" {
     try expect(!b.contains(6));
     b.free();
 }
-
-
