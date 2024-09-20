@@ -22,7 +22,7 @@ test "of + free" {
     b.free();
 
     // From array
-    var arr = [_]u32{ 100, 200 };
+    const arr = [_]u32{ 100, 200 };
     var c = try Bitmap.of(arr);
     c.free();
 }
@@ -272,7 +272,7 @@ test "catch 'em all" {
     len = c.frozenSizeInBytes();
     try expect(len < buf.len);
     c.frozenSerialize(buf[0..]);
-    var view: *const Bitmap = try Bitmap.frozenView(buf[0..len]);
+    const view: *const Bitmap = try Bitmap.frozenView(buf[0..len]);
     try expect(c.eql(view));
 
     var f = try Bitmap.fromRange(10, 50, 1);
@@ -310,7 +310,7 @@ test "catch 'em all" {
 }
 
 fn iterate_sum(value: u32, data: ?*anyopaque) callconv(.C) bool {
-    var ptr: *u32 = @ptrCast(@alignCast(data));
+    const ptr: *u32 = @ptrCast(@alignCast(data));
     ptr.* += value;
     return true;
 }
