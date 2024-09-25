@@ -145,14 +145,27 @@ pub const Bitmap = extern struct {
     /// Create a Bitmap from a tuple or array of u32s
     pub fn of(tup: anytype) RoaringError!*Bitmap {
         const Tup = @TypeOf(tup);
-        const isArray = @typeInfo(Tup) == .Array;
-        if (comptime !std.meta.trait.isTuple(Tup) and !isArray) {
-            @compileError("Bitmap.of takes a tuple or array of u32, got " ++ @typeName(Tup));
+        const type_info = @typeInfo(Tup);
+
+        const supported = comptime switch (type_info) {
+            .Array => |info| info.child == u32 or info.child == usize,
+            .Struct => |info| info.is_tuple and blk: {
+                for (std.meta.fields(Tup)) |field| {
+                     if (field.type != u32 and field.type != comptime_int) break :blk false;
+                 }
+                 break :blk true;
+            },
+            .Pointer => |info| info.size == .Slice and info.child == u32,
+            else => false,
+        };
+
+        if (supported) {
+            // Little trick to convert a tuple or array to a slice
+            const arr: [tup.len]u32 = tup;
+            return fromSlice(&arr);
         }
 
-        // Little trick to convert a tuple or array to a slice
-        const arr: [tup.len]u32 = tup;
-        return fromSlice(&arr);
+        @compileError("Bitmap.of takes a tuple or array of u32, got " ++ @typeName(Tup));
     }
 
     ///
@@ -741,12 +754,12 @@ fn setAllocation(mem: []u8) ?*anyopaque {
 }
 
 fn getAllocation(ptr: ?*anyopaque) []u8 {
-    var len = allocations.get(ptr) orelse @panic("getAllocation cannot find pointer");
+    const len = allocations.get(ptr) orelse @panic("getAllocation cannot find pointer");
     return @as([*]u8, @ptrCast(ptr))[0..len];
 }
 
 fn getRemoveAllocation(ptr: ?*anyopaque) []u8 {
-    var kv = allocations.fetchRemove(ptr) orelse @panic("removeAllocationn cannot find pointer");
+    const kv = allocations.fetchRemove(ptr) orelse @panic("removeAllocationn cannot find pointer");
     return @as([*c]u8, @ptrCast(ptr))[0..kv.value];
 }
 

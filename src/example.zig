@@ -67,7 +67,7 @@ pub fn main() !void {
 
     // we can write a bitmap to a pointer and recover it later
     const expected_size = r1.portableSizeInBytes();
-    var serialized_bytes = try allocator.alloc(u8, expected_size);
+    const serialized_bytes = try allocator.alloc(u8, expected_size);
     const written_size = r1.portableSerialize(serialized_bytes);
     assert(written_size == expected_size);
     var t = try Bitmap.portableDeserialize(serialized_bytes);
@@ -124,7 +124,7 @@ pub fn main() !void {
 }
 
 export fn roaring_iterator_sumall(value: u32, param: ?*anyopaque) bool {
-    var ptr: *u32 = @ptrCast(@alignCast(param));
+    const ptr: *u32 = @ptrCast(@alignCast(param));
     ptr.* += value;
     return true; // iterate till the end
 }
