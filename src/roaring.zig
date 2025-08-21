@@ -82,11 +82,16 @@ pub const Bitmap = extern struct {
         // We'll just grab the type info, swap out the child field and be done
         // This way const/non-const are handled automatically
         var info = @typeInfo(T);
-        info.Pointer.child = switch (info.Pointer.child) {
-            c.roaring_bitmap_t => Bitmap,
-            Bitmap => c.roaring_bitmap_t,
-            else => unreachable, // don't call this with anything else
-        };
+        switch (info) {
+            .pointer => |*ptr_info| {
+                ptr_info.child = switch (ptr_info.child) {
+                    c.roaring_bitmap_t => Bitmap,
+                    Bitmap => c.roaring_bitmap_t,
+                    else => unreachable, // don't call this with anything else
+                };
+            },
+            else => unreachable,
+        }
         return @Type(info); // turn the modified TypeInfo into a type
     }
 
@@ -148,14 +153,14 @@ pub const Bitmap = extern struct {
         const type_info = @typeInfo(Tup);
 
         const supported = comptime switch (type_info) {
-            .Array => |info| info.child == u32 or info.child == usize,
-            .Struct => |info| info.is_tuple and blk: {
+            .array => |info| info.child == u32 or info.child == usize,
+            .@"struct" => |info| info.is_tuple and blk: {
                 for (std.meta.fields(Tup)) |field| {
                      if (field.type != u32 and field.type != comptime_int) break :blk false;
                  }
                  break :blk true;
             },
-            .Pointer => |info| info.size == .Slice and info.child == u32,
+            .pointer => |info| info.size == .slice and info.child == u32,
             else => false,
         };
 
