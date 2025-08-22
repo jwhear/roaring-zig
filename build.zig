@@ -44,5 +44,6 @@ pub fn add(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builti
 
     lib.addCSourceFile(.{ .file = b.path("croaring/roaring.c"), .flags = &.{} });
     lib.addIncludePath(b.path("croaring"));
+    lib.linkLibC();
     return lib;
 }
