@@ -5,17 +5,9 @@ This library implements Zig bindings for the [CRoaring library](https://github.c
 Any C function that begins with `roaring_bitmap_` is a method of the `Bitmap` struct, e.g. `roaring_bitmap_add` becomes `Bitmap.add`.  Because `and` and `or` are Zig keywords, the bitwise operators `and`, `or`, and `xor` are consistently prefixed with an underscore, e.g. `Bitmap._or` and `Bitmap._orCardinality`.  All functions have been renamed to Zig's naming convention (camel-case).
 
 ## Versions
-Current CRoaring version: 4.1.6
+Current CRoaring version: 4.3.9
 
-Current Zig version: 0.13.0
-
-> [!CAUTION]
-> An [LLVM bug](https://github.com/llvm/llvm-project/issues/91719) made it into Zig 0.13.0 that causes incorrect CPU feature identification on some machines. This will manifest as errors like this:
-> ```
-> error: always_inline function '_mm512_cvtepu16_epi32' requires target feature 'evex512', but would be inlined into function 'avx512_array_container_to_uint32_array' that is compiled without support for 'evex512'
-> ```
-> As a workaround, specify a more generic target CPU like `-Dcpu=x86_64_v4`
-
+Current Zig version: 0.14.1
 
 ## Adding with zigmod
 If you're using the zigmod dependency manager, you can add roaring-zig to your project by adding it as a dependency in your zigmod.yml file:
