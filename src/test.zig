@@ -309,7 +309,7 @@ test "catch 'em all" {
     _ = it.read(vals[0..]);
 }
 
-fn iterate_sum(value: u32, data: ?*anyopaque) callconv(.C) bool {
+fn iterate_sum(value: u32, data: ?*anyopaque) callconv(.c) bool {
     const ptr: *u32 = @ptrCast(@alignCast(data));
     ptr.* += value;
     return true;

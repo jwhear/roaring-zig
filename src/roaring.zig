@@ -25,7 +25,7 @@ pub const RoaringError = error{
 };
 
 ///
-pub const IteratorFunction = fn (u32, ?*anyopaque) callconv(.C) bool;
+pub const IteratorFunction = fn (u32, ?*anyopaque) callconv(.c) bool;
 
 /// Contains the following u32 fields:
 ///    n_containers               // number of containers
@@ -709,7 +709,7 @@ pub const Bitmap = extern struct {
 ///  frozenSerialize/frozenView
 pub fn allocForFrozen(allocator: std.mem.Allocator, len: usize) ![]align(32) u8 {
     // The buffer must be 32-byte aligned and sized exactly
-    return allocator.alignedAlloc(u8, 32, // alignment
+    return allocator.alignedAlloc(u8, std.mem.Alignment.fromByteUnits(32), // alignment
         len);
 }
 
@@ -817,10 +817,10 @@ export fn roaringAlignedMalloc(ptr_align: usize, size: usize) ?*anyopaque {
         // Allocator's alignment parameter has to be comptime known, so we
         //  have to do this somewhat awkward transform:
         switch (ptr_align) {
-            8 => ally.alignedAlloc(u8, 8, size),
-            16 => ally.alignedAlloc(u8, 16, size),
+            8 => ally.alignedAlloc(u8, std.mem.Alignment.fromByteUnits(8), size),
+            16 => ally.alignedAlloc(u8, std.mem.Alignment.fromByteUnits(16), size),
             // This appears to be the only value that is actually used in roaring.c
-            32 => ally.alignedAlloc(u8, 32, size),
+            32 => ally.alignedAlloc(u8, std.mem.Alignment.fromByteUnits(32), size),
             else => @panic("Unexpected alignment size"),
         } catch return null);
     }
