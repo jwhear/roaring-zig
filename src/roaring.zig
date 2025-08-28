@@ -156,9 +156,9 @@ pub const Bitmap = extern struct {
             .array => |info| info.child == u32 or info.child == usize,
             .@"struct" => |info| info.is_tuple and blk: {
                 for (std.meta.fields(Tup)) |field| {
-                     if (field.type != u32 and field.type != comptime_int) break :blk false;
-                 }
-                 break :blk true;
+                    if (field.type != u32 and field.type != comptime_int) break :blk false;
+                }
+                break :blk true;
             },
             .pointer => |info| info.size == .slice and info.child == u32,
             else => false,
@@ -814,15 +814,15 @@ export fn roaringFree(ptr: ?*anyopaque) void {
 export fn roaringAlignedMalloc(ptr_align: usize, size: usize) ?*anyopaque {
     if (global_roaring_allocator) |ally| {
         return setAllocation(
-        // Allocator's alignment parameter has to be comptime known, so we
-        //  have to do this somewhat awkward transform:
-        switch (ptr_align) {
-            8 => ally.alignedAlloc(u8, std.mem.Alignment.fromByteUnits(8), size),
-            16 => ally.alignedAlloc(u8, std.mem.Alignment.fromByteUnits(16), size),
-            // This appears to be the only value that is actually used in roaring.c
-            32 => ally.alignedAlloc(u8, std.mem.Alignment.fromByteUnits(32), size),
-            else => @panic("Unexpected alignment size"),
-        } catch return null);
+            // Allocator's alignment parameter has to be comptime known, so we
+            //  have to do this somewhat awkward transform:
+            switch (ptr_align) {
+                8 => ally.alignedAlloc(u8, std.mem.Alignment.fromByteUnits(8), size),
+                16 => ally.alignedAlloc(u8, std.mem.Alignment.fromByteUnits(16), size),
+                // This appears to be the only value that is actually used in roaring.c
+                32 => ally.alignedAlloc(u8, std.mem.Alignment.fromByteUnits(32), size),
+                else => @panic("Unexpected alignment size"),
+            } catch return null);
     }
     return null;
 }

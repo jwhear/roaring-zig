@@ -7,7 +7,7 @@ Any C function that begins with `roaring_bitmap_` is a method of the `Bitmap` st
 ## Versions
 Current CRoaring version: 4.3.9
 
-Current Zig version: 0.14.1
+Current Zig version: 0.15.1
 
 ## Adding with zigmod
 If you're using the zigmod dependency manager, you can add roaring-zig to your project by adding it as a dependency in your zigmod.yml file:
