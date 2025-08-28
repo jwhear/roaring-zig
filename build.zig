@@ -23,6 +23,19 @@ pub fn build(b: *std.Build) void {
     const test_step = b.step("test", "Run library tests");
     test_step.dependOn(&run_main_tests.step);
 
+    // 64-bit tests
+    var tests64 = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/test64.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    tests64.linkLibrary(lib);
+    tests64.addIncludePath(b.path("croaring"));
+    const run_tests64 = b.addRunArtifact(tests64);
+    test_step.dependOn(&run_tests64.step);
+
     var example = b.addExecutable(.{
         .name = "example",
         .root_module = b.createModule(.{
