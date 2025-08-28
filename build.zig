@@ -10,7 +10,11 @@ pub fn build(b: *std.Build) void {
     b.installArtifact(lib);
 
     var main_tests = b.addTest(.{
-        .root_source_file = b.path("src/test.zig"),
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/test.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
     main_tests.linkLibrary(lib);
     main_tests.addIncludePath(b.path("croaring"));
@@ -21,9 +25,11 @@ pub fn build(b: *std.Build) void {
 
     var example = b.addExecutable(.{
         .name = "example",
-        .root_source_file = b.path("src/example.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/example.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
     example.linkLibrary(lib);
     example.addIncludePath(b.path("croaring"));
@@ -34,12 +40,15 @@ pub fn build(b: *std.Build) void {
 }
 
 /// Add Roaring Bitmaps to your build process
-pub fn add(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.Mode) *std.Build.Step.Compile {
-    var lib = b.addStaticLibrary(.{
+pub fn add(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) *std.Build.Step.Compile {
+    var lib = b.addLibrary(.{
         .name = "roaring-zig",
-        .root_source_file = b.path("src/roaring.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/roaring.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+        .linkage = .static,
     });
 
     lib.addCSourceFile(.{ .file = b.path("croaring/roaring.c"), .flags = &.{} });
