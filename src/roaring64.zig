@@ -402,6 +402,11 @@ pub const Bitmap64 = opaque {
         return out;
     }
 
+    /// Copy all values into `out`. Length must be >= `cardinality()`.
+    pub fn toUint64Array(self: *const Bitmap64, out: []u64) void {
+        c.roaring64_bitmap_to_uint64_array(conv(self), out.ptr);
+    }
+
     //================================ Iteration ===============================//
 
     /// Iterate with a callback. Returns true if the callback returned true throughout.

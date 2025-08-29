@@ -1,11 +1,16 @@
 const std = @import("std");
 const roaring = @import("roaring");
 const roaring64 = @import("roaring64");
+const c = @cImport({
+    @cInclude("roaring.h");
+});
 
 const DataSet = struct {
     allocator: std.mem.Allocator,
     bitmaps32: []*roaring.Bitmap,
     bitmaps64: []*roaring64.Bitmap64,
+    array_buf32: []u32,
+    array_buf64: []u64,
     max_value: u32,
     max_cardinality: usize,
 };
@@ -111,7 +116,10 @@ fn buildBitmaps(allocator: std.mem.Allocator, all_numbers: [][]u32) !DataSet {
         }
         _ = bitmaps64[i].runOptimize();
     }
-    return .{ .allocator = allocator, .bitmaps32 = bitmaps, .bitmaps64 = bitmaps64, .max_value = max_value, .max_cardinality = max_card };
+    const buf_len: usize = if (max_card == 0) 1 else max_card;
+    const array_buf32 = try allocator.alloc(u32, buf_len);
+    const array_buf64 = try allocator.alloc(u64, buf_len);
+    return .{ .allocator = allocator, .bitmaps32 = bitmaps, .bitmaps64 = bitmaps64, .array_buf32 = array_buf32, .array_buf64 = array_buf64, .max_value = max_value, .max_cardinality = max_card };
 }
 
 fn freeBitmaps(ds: *DataSet) void {
@@ -119,6 +127,8 @@ fn freeBitmaps(ds: *DataSet) void {
     for (ds.bitmaps64) |bm| bm.free();
     ds.allocator.free(ds.bitmaps32);
     ds.allocator.free(ds.bitmaps64);
+    ds.allocator.free(ds.array_buf32);
+    ds.allocator.free(ds.array_buf64);
 }
 
 fn runBenchmarks(allocator: std.mem.Allocator, ds: *const DataSet, data_source: []const u8) !void {
@@ -333,18 +343,8 @@ fn bench_to_array(ds: *const DataSet) u64 {
     var marker: u64 = 0;
     for (ds.bitmaps32) |bm| {
         const card = bm.cardinality();
-        var tmp = std.heap.page_allocator.alloc(u32, @intCast(card)) catch unreachable;
-        defer std.heap.page_allocator.free(tmp);
-        // The direct to-array API is in CRoaring C; here we skip for parity.
-        // Use iterator bulk read instead to simulate work
-        var it = bm.iterator();
-        var idx: usize = 0;
-        while (it.hasValue()) {
-            if (idx < tmp.len) tmp[idx] = it.currentValue();
-            idx += 1;
-            _ = it.next();
-        }
-        if (tmp.len > 0) marker += tmp[0];
+        bm.toUint32Array(ds.array_buf32[0..@intCast(card)]);
+        if (card > 0) marker += ds.array_buf32[0];
     }
     return marker;
 }
@@ -353,18 +353,8 @@ fn bench_to_array64(ds: *const DataSet) u64 {
     var marker: u64 = 0;
     for (ds.bitmaps64) |bm| {
         const card = bm.cardinality();
-        var tmp = std.heap.page_allocator.alloc(u64, @intCast(card)) catch unreachable;
-        defer std.heap.page_allocator.free(tmp);
-        // No direct to-array in wrapper: iterate
-        var it = bm.iterator() catch unreachable;
-        defer it.free();
-        var idx: usize = 0;
-        while (it.hasValue()) {
-            if (idx < tmp.len) tmp[idx] = it.currentValue();
-            idx += 1;
-            _ = it.next();
-        }
-        if (tmp.len > 0) marker += @intCast(tmp[0] & 0xffffffff);
+        bm.toUint64Array(ds.array_buf64[0..@intCast(card)]);
+        if (card > 0) marker += @intCast(ds.array_buf64[0] & 0xffffffff);
     }
     return marker;
 }
