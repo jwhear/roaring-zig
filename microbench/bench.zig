@@ -131,7 +131,7 @@ fn freeBitmaps(ds: *DataSet) void {
     ds.allocator.free(ds.array_buf64);
 }
 
-fn runBenchmarks(allocator: std.mem.Allocator, ds: *const DataSet, data_source: []const u8) !void {
+fn runBenchmarks(allocator: std.mem.Allocator, ds: *const DataSet, data_source: []const u8, filter: ?[]const u8) !void {
     std.debug.print("data source: {s}\n", .{data_source});
     std.debug.print("number of bitmaps: {d}\n", .{ds.bitmaps32.len});
 
@@ -166,7 +166,9 @@ fn runBenchmarks(allocator: std.mem.Allocator, ds: *const DataSet, data_source: 
     std.debug.print("Benchmark                                  Time            Iterations\n", .{});
     std.debug.print("---------------------------------------------------------------------\n", .{});
 
+    var matched: usize = 0;
     for (benches) |b| {
+        if (filter) |f| if (std.mem.indexOf(u8, b.name, f) == null) continue;
         var total_ns: u64 = 0;
         var iterations: u64 = 0;
         var marker_sum: u64 = 0;
@@ -186,6 +188,10 @@ fn runBenchmarks(allocator: std.mem.Allocator, ds: *const DataSet, data_source: 
         std.debug.print("{s:<36}{d:12} ns {d:12}\n", .{ b.name, avg_ns, iterations });
         // prevent optimizer from removing work
         if (marker_sum == 0xDEADBEEFDEADBEEF) @panic("impossible");
+        matched += 1;
+    }
+    if (filter != null and matched == 0) {
+        std.debug.print("No benchmarks matched filter: '{s}'\n", .{filter.?});
     }
     _ = allocator; // reserved for future counters
 }
@@ -432,14 +438,21 @@ pub fn main() !void {
 
     var data_dir: []const u8 = undefined;
     var own_data_dir = false;
-    // Pick the first non-flag argument as the dataset directory, else default
+    // Pick the first non-flag argument as the dataset directory; support -b/--bench <substr>
     var chosen: ?[]const u8 = null;
+    var bench_filter: ?[]const u8 = null;
     var idx: usize = 1;
     while (idx < args.len) : (idx += 1) {
         const a = args[idx];
+        if (std.mem.eql(u8, a, "-b") or std.mem.eql(u8, a, "--bench")) {
+            if (idx + 1 < args.len) {
+                bench_filter = args[idx + 1];
+                idx += 1;
+                continue;
+            }
+        }
         if (a.len > 0 and a[0] != '-') {
-            chosen = a;
-            break;
+            if (chosen == null) chosen = a;
         }
     }
     if (chosen == null) {
@@ -477,5 +490,5 @@ pub fn main() !void {
         if (own_data_dir) allocator.free(data_dir);
     }
 
-    try runBenchmarks(allocator, &ds, data_dir);
+    try runBenchmarks(allocator, &ds, data_dir, bench_filter);
 }

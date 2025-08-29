@@ -218,3 +218,8 @@ zig build -Doptimize=ReleaseFast bench -- /path/to/CRoaring/benchmarks/realdata/
 Notes:
 - Use `-Doptimize=ReleaseFast` for numbers comparable to CRoaring's C/C++ builds.
 - Keep the command on a single line after `--`. If you press Enter before the path, your shell may try to execute the path and report "permission denied".
+- To run only a subset, filter by substring with `--bench` (or `-b`):
+
+```bash
+zig build -Doptimize=ReleaseFast bench -- /path/to/dataset --bench Array
+```
