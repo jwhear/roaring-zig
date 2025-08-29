@@ -61,13 +61,22 @@ pub fn build(b: *std.Build) void {
         }),
     });
     // Allow bench to import the Zig roaring wrapper as `@import("roaring")`
-    const roaring_mod = b.createModule(.{
+    const roaring_mod = b.addModule("roaring_mod", .{
         .root_source_file = b.path("src/roaring.zig"),
         .target = target,
         .optimize = optimize,
     });
     roaring_mod.addIncludePath(b.path("croaring"));
     bench.root_module.addImport("roaring", roaring_mod);
+    // And 64-bit wrapper
+    const roaring64_mod = b.addModule("roaring64_mod", .{
+        .root_source_file = b.path("src/roaring64.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    roaring64_mod.addIncludePath(b.path("croaring"));
+    roaring64_mod.addImport("roaring", roaring_mod);
+    bench.root_module.addImport("roaring64", roaring64_mod);
     // Compile CRoaring C source into the bench so Zig wrapper can link
     bench.addCSourceFile(.{ .file = b.path("croaring/roaring.c"), .flags = &.{} });
     bench.addIncludePath(b.path("croaring"));

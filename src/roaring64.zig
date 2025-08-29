@@ -15,7 +15,7 @@
 /// - The iterator for 64-bit bitmaps allocates; you must call `Iterator.free()`.
 ///
 const std = @import("std");
-const roaring = @import("roaring.zig");
+const roaring = @import("roaring");
 const c = @cImport({
     @cInclude("roaring.h");
 });
