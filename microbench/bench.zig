@@ -121,8 +121,8 @@ fn freeBitmaps(ds: *DataSet) void {
     ds.allocator.free(ds.bitmaps64);
 }
 
-fn runBenchmarks(allocator: std.mem.Allocator, ds: *const DataSet) !void {
-    std.debug.print("data source: {s}\n", .{global_data_source orelse "(unspecified)"});
+fn runBenchmarks(allocator: std.mem.Allocator, ds: *const DataSet, data_source: []const u8) !void {
+    std.debug.print("data source: {s}\n", .{data_source});
     std.debug.print("number of bitmaps: {d}\n", .{ds.bitmaps32.len});
 
     // List of benches: name, function pointer
@@ -142,19 +142,19 @@ fn runBenchmarks(allocator: std.mem.Allocator, ds: *const DataSet) !void {
         .{ .name = "TotalUnionHeap", .func = bench_total_union_heap },
         .{ .name = "RandomAccess", .func = bench_random_access },
         .{ .name = "RandomAccess64", .func = bench_random_access64 },
-        .{ .name = "ComputeCardinality", .func = bench_compute_cardinality },
-        .{ .name = "ComputeCardinality64", .func = bench_compute_cardinality64 },
-        .{ .name = "RankManySlow", .func = bench_rank_many_slow },
-        .{ .name = "RankMany", .func = bench_rank_many },
         .{ .name = "ToArray", .func = bench_to_array },
         .{ .name = "ToArray64", .func = bench_to_array64 },
         .{ .name = "IterateAll", .func = bench_iterate_all },
         .{ .name = "IterateAll64", .func = bench_iterate_all64 },
+        .{ .name = "ComputeCardinality", .func = bench_compute_cardinality },
+        .{ .name = "ComputeCardinality64", .func = bench_compute_cardinality64 },
+        .{ .name = "RankManySlow", .func = bench_rank_many_slow },
+        .{ .name = "RankMany", .func = bench_rank_many },
     };
 
-    std.debug.print("------------------------------------------------------------------------------\n", .{});
-    std.debug.print("Benchmark                                    Time             CPU   Iterations\n", .{});
-    std.debug.print("------------------------------------------------------------------------------\n", .{});
+    std.debug.print("---------------------------------------------------------------------\n", .{});
+    std.debug.print("Benchmark                                  Time            Iterations\n", .{});
+    std.debug.print("---------------------------------------------------------------------\n", .{});
 
     for (benches) |b| {
         var total_ns: u64 = 0;
@@ -173,7 +173,7 @@ fn runBenchmarks(allocator: std.mem.Allocator, ds: *const DataSet) !void {
             if (total_ns >= target_total_ns) break;
         }
         const avg_ns: u64 = if (iterations > 0) total_ns / iterations else 0;
-        std.debug.print("{s:<42}{d:12} ns {d:12} ns {d:12}\n", .{ b.name, avg_ns, avg_ns, iterations });
+        std.debug.print("{s:<36}{d:12} ns {d:12}\n", .{ b.name, avg_ns, iterations });
         // prevent optimizer from removing work
         if (marker_sum == 0xDEADBEEFDEADBEEF) @panic("impossible");
     }
@@ -432,8 +432,6 @@ fn bench_rank_many(ds: *const DataSet) u64 {
     return ranks[0];
 }
 
-var global_data_source: ?[]const u8 = null;
-
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
@@ -443,7 +441,18 @@ pub fn main() !void {
     defer std.process.argsFree(allocator, args);
 
     var data_dir: []const u8 = undefined;
-    if (args.len <= 1 or (args.len > 1 and args[1].len > 0 and args[1][0] == '-')) {
+    var own_data_dir = false;
+    // Pick the first non-flag argument as the dataset directory, else default
+    var chosen: ?[]const u8 = null;
+    var idx: usize = 1;
+    while (idx < args.len) : (idx += 1) {
+        const a = args[idx];
+        if (a.len > 0 and a[0] != '-') {
+            chosen = a;
+            break;
+        }
+    }
+    if (chosen == null) {
         // Default to CRoaring realdata census1881 if available
         const home = std.process.getEnvVarOwned(allocator, "HOME") catch null;
         if (home) |h| {
@@ -454,6 +463,7 @@ pub fn main() !void {
                 var dir = d; // make mutable to close
                 dir.close();
                 data_dir = try allocator.dupe(u8, def);
+                own_data_dir = true;
             } else |_| {
                 data_dir = "."; // fallback
             }
@@ -461,10 +471,8 @@ pub fn main() !void {
             data_dir = ".";
         }
     } else {
-        data_dir = args[1];
+        data_dir = chosen.?;
     }
-    global_data_source = data_dir;
-
     const numbers = try readAllIntegerFiles(allocator, data_dir);
     if (numbers.len == 0) {
         std.debug.print("No .txt files found in {s}\n", .{data_dir});
@@ -476,8 +484,8 @@ pub fn main() !void {
         freeBitmaps(&ds);
         for (numbers) |arr| allocator.free(arr);
         allocator.free(numbers);
-        if (global_data_source) |p| allocator.free(p);
+        if (own_data_dir) allocator.free(data_dir);
     }
 
-    try runBenchmarks(allocator, &ds);
+    try runBenchmarks(allocator, &ds, data_dir);
 }

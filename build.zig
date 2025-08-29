@@ -82,6 +82,10 @@ pub fn build(b: *std.Build) void {
     bench.addIncludePath(b.path("croaring"));
     bench.linkLibC();
     const run_bench = b.addRunArtifact(bench);
+    // forward args passed after `--` to the bench executable
+    if (b.args) |cli_args| {
+        run_bench.addArgs(cli_args);
+    }
     // Allow passing a dataset directory like: zig build bench -- <dir>
     const bench_step = b.step("bench", "Run microbenchmarks (optionally pass a data dir)");
     bench_step.dependOn(&run_bench.step);

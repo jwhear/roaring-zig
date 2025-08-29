@@ -198,3 +198,23 @@ defer on_the_stack.clear(); // the contents are dynamic, free by clearing
 var result = dynamic._or(&on_the_stack);
 defer result.free(); // operation results are always dynamic
 ```
+
+## Running microbenchmarks
+
+We provide a small microbenchmark runner similar to CRoaring's.
+
+- Build and run with the default dataset (tries `~/source/CRoaring/benchmarks/realdata/census1881`):
+
+```bash
+zig build -Doptimize=ReleaseFast bench
+```
+
+- Or pass a dataset directory (must contain `.txt` files with comma-separated integers):
+
+```bash
+zig build -Doptimize=ReleaseFast bench -- /path/to/CRoaring/benchmarks/realdata/census1881
+```
+
+Notes:
+- Use `-Doptimize=ReleaseFast` for numbers comparable to CRoaring's C/C++ builds.
+- Keep the command on a single line after `--`. If you press Enter before the path, your shell may try to execute the path and report "permission denied".
