@@ -159,7 +159,6 @@ fn runBenchmarks(allocator: std.mem.Allocator, ds: *const DataSet, data_source: 
         .{ .name = "ComputeCardinality", .func = bench_compute_cardinality },
         .{ .name = "ComputeCardinality64", .func = bench_compute_cardinality64 },
         .{ .name = "RankManySlow", .func = bench_rank_many_slow },
-        .{ .name = "RankMany", .func = bench_rank_many },
     };
 
     std.debug.print("---------------------------------------------------------------------\n", .{});
@@ -409,21 +408,6 @@ fn bench_rank_many_slow(ds: *const DataSet) u64 {
         ranks[2] = bm.rank(3 * ds.max_value / 5);
         ranks[3] = bm.rank(4 * ds.max_value / 5);
         ranks[4] = bm.rank(ds.max_value);
-    }
-    return ranks[0];
-}
-
-fn bench_rank_many(ds: *const DataSet) u64 {
-    var ranks: [5]u64 = .{0} ** 5;
-    const input: [5]u32 = .{
-        ds.max_value / 5, 2 * ds.max_value / 5, 3 * ds.max_value / 5, 4 * ds.max_value / 5, ds.max_value,
-    };
-    for (ds.bitmaps32) |bm| {
-        // Use rank in a loop to simulate bulk; CRoaring uses rank_many API
-        var i: usize = 0;
-        while (i < input.len) : (i += 1) {
-            ranks[i] = bm.rank(input[i]);
-        }
     }
     return ranks[0];
 }
