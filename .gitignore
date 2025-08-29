@@ -4,3 +4,6 @@ zig-out/
 deps.zig
 .zig-cache
 tmp
+build/
+src/example
+src/test
