@@ -50,6 +50,32 @@ pub fn build(b: *std.Build) void {
     const run_example = b.addRunArtifact(example);
     run_example.step.dependOn(&example.step); // gotta build it first
     b.step("run-example", "Run the example").dependOn(&run_example.step);
+
+    // Microbench executable similar to CRoaring's bench
+    var bench = b.addExecutable(.{
+        .name = "bench",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("microbench/bench.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    // Allow bench to import the Zig roaring wrapper as `@import("roaring")`
+    const roaring_mod = b.createModule(.{
+        .root_source_file = b.path("src/roaring.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    roaring_mod.addIncludePath(b.path("croaring"));
+    bench.root_module.addImport("roaring", roaring_mod);
+    // Compile CRoaring C source into the bench so Zig wrapper can link
+    bench.addCSourceFile(.{ .file = b.path("croaring/roaring.c"), .flags = &.{} });
+    bench.addIncludePath(b.path("croaring"));
+    bench.linkLibC();
+    const run_bench = b.addRunArtifact(bench);
+    // Allow passing a dataset directory like: zig build bench -- <dir>
+    const bench_step = b.step("bench", "Run microbenchmarks (optionally pass a data dir)");
+    bench_step.dependOn(&run_bench.step);
 }
 
 /// Add Roaring Bitmaps to your build process
