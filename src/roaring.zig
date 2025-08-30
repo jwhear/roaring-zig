@@ -630,6 +630,11 @@ pub const Bitmap = extern struct {
         return out;
     }
 
+    /// Copy all values into `out`. Length of `out` must be >= `cardinality()`.
+    pub fn toUint32Array(self: *const Bitmap, out: []u32) void {
+        c.roaring_bitmap_to_uint32_array(conv(self), out.ptr);
+    }
+
     //============================= Optimization =============================//
     /// Remove run-length encoding even when it is more space efficient.
     /// Return whether a change was applied.

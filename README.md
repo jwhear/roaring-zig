@@ -198,3 +198,79 @@ defer on_the_stack.clear(); // the contents are dynamic, free by clearing
 var result = dynamic._or(&on_the_stack);
 defer result.free(); // operation results are always dynamic
 ```
+
+## Running microbenchmarks
+
+We provide a small microbenchmark runner similar to CRoaring's.
+
+- Build and run with the default dataset (tries `~/source/CRoaring/benchmarks/realdata/census1881`):
+
+```bash
+zig build -Doptimize=ReleaseFast bench
+```
+
+- Or pass a dataset directory (must contain `.txt` files with comma-separated integers):
+
+```bash
+zig build -Doptimize=ReleaseFast bench -- /path/to/CRoaring/benchmarks/realdata/census1881
+```
+
+Notes:
+- Use `-Doptimize=ReleaseFast` for numbers comparable to CRoaring's C/C++ builds.
+- Keep the command on a single line after `--`. If you press Enter before the path, your shell may try to execute the path and report "permission denied".
+- To run only a subset, filter by substring with `--bench` (or `-b`):
+
+```bash
+zig build -Doptimize=ReleaseFast bench -- /path/to/dataset --bench Array
+```
+
+### Compare with CRoaring microbenchmarks (C vs Zig)
+
+Use the helper script to clone/update CRoaring, build its C microbenchmarks with zig cc/c++, run both C and Zig benches on the same dataset, and print a comparison table by benchmark name using only the Time (ns) column.
+
+- Basic (clones into `/tmp/CRoaring` if not set via `CROARING_DIR`, uses `census1881` dataset):
+
+```bash
+./run_croaring_microbench.sh
+```
+
+- Run against a specific dataset directory inside CRoaring:
+
+```bash
+./run_croaring_microbench.sh "/tmp/CRoaring/benchmarks/realdata/census-income"
+./run_croaring_microbench.sh "/tmp/CRoaring/benchmarks/realdata/uscensus2000"
+```
+
+- If your CRoaring clone lives elsewhere, set `CROARING_DIR` (the first positional argument is still the dataset directory):
+
+```bash
+CROARING_DIR="/path/to/CRoaring" \
+  ./run_croaring_microbench.sh \
+  "$CROARING_DIR/benchmarks/realdata/census1881"
+```
+
+- Pass google-benchmark filters to the CRoaring side (e.g., to run only union-related benches):
+
+```bash
+./run_croaring_microbench.sh "/tmp/CRoaring/benchmarks/realdata/census1881" \
+  --benchmark_filter=SuccessiveUnion.*
+```
+
+- Batch across all datasets:
+
+```bash
+CROARING_DIR="${CROARING_DIR:-$HOME/source/CRoaring}"
+for d in "$CROARING_DIR"/benchmarks/realdata/*; do
+  [ -d "$d" ] && ./run_croaring_microbench.sh "$d"
+done
+```
+
+The script prints a table like:
+
+```
+Benchmark                            CRoaring(ns)        Zig(ns)     Zig/CR
+---------                             -----------        -------      -----
+SuccessiveIntersection                      20276           19524      0.96x
+...
+```
+

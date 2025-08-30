@@ -15,7 +15,7 @@
 /// - The iterator for 64-bit bitmaps allocates; you must call `Iterator.free()`.
 ///
 const std = @import("std");
-const roaring = @import("roaring.zig");
+const roaring = @import("roaring");
 const c = @cImport({
     @cInclude("roaring.h");
 });
@@ -400,6 +400,11 @@ pub const Bitmap64 = opaque {
         var out: Statistics = undefined;
         c.roaring64_bitmap_statistics(conv(self), &out);
         return out;
+    }
+
+    /// Copy all values into `out`. Length must be >= `cardinality()`.
+    pub fn toUint64Array(self: *const Bitmap64, out: []u64) void {
+        c.roaring64_bitmap_to_uint64_array(conv(self), out.ptr);
     }
 
     //================================ Iteration ===============================//
