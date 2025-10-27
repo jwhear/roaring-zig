@@ -4,9 +4,39 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    // Add option to disable AVX512 in CRoaring, or auto-detect CPU capabilities
+    const disable_avx512 = b.option(bool, "ROARING_DISABLE_AVX512", "Disable AVX512 in CRoaring") orelse blk: {
+        // Auto-detect: disable AVX512 if the target CPU doesn't support it
+        const resolved_target = b.resolveTargetQuery(target.query);
+        const cpu_arch = resolved_target.result.cpu.arch;
+
+        // AVX512 is only available on x86_64 architecture
+        if (cpu_arch != .x86_64) {
+            std.log.info("Non-x86_64 target detected ({s}), disabling AVX512 in CRoaring", .{@tagName(cpu_arch)});
+            break :blk true; // disable AVX512
+        }
+
+        // For x86_64, check if the CPU supports the required AVX512 features
+        const cpu_features = resolved_target.result.cpu.features;
+        const has_avx512f = cpu_features.isEnabled(@intFromEnum(std.Target.x86.Feature.avx512f));
+        const has_avx512dq = cpu_features.isEnabled(@intFromEnum(std.Target.x86.Feature.avx512dq));
+        const has_avx512bw = cpu_features.isEnabled(@intFromEnum(std.Target.x86.Feature.avx512bw));
+
+        // CRoaring requires multiple AVX512 features, not just AVX512F
+        const has_required_avx512 = has_avx512f and has_avx512dq and has_avx512bw;
+
+        if (!has_required_avx512) {
+            std.log.info("AVX512 features not detected on x86_64 target CPU, disabling AVX512 in CRoaring", .{});
+        } else {
+            std.log.info("AVX512 features detected on x86_64 target CPU, enabling AVX512 optimizations", .{});
+        }
+
+        break :blk !has_required_avx512;
+    };
+
     // Standard release options allow the person running `zig build` to select
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall.
-    const lib = add(b, target, optimize);
+    const lib = add(b, target, optimize, disable_avx512);
     b.installArtifact(lib);
 
     var main_tests = b.addTest(.{
@@ -75,10 +105,11 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
     roaring64_mod.addIncludePath(b.path("croaring"));
-    roaring64_mod.addImport("roaring", roaring_mod);
     bench.root_module.addImport("roaring64", roaring64_mod);
+
     // Compile CRoaring C source into the bench so Zig wrapper can link
-    bench.addCSourceFile(.{ .file = b.path("croaring/roaring.c"), .flags = &.{} });
+    const bench_flags: []const []const u8 = if (disable_avx512) &[_][]const u8{"-DCROARING_COMPILER_SUPPORTS_AVX512=0"} else &[_][]const u8{};
+    bench.addCSourceFile(.{ .file = b.path("croaring/roaring.c"), .flags = bench_flags });
     bench.addIncludePath(b.path("croaring"));
     bench.linkLibC();
     const run_bench = b.addRunArtifact(bench);
@@ -92,7 +123,7 @@ pub fn build(b: *std.Build) void {
 }
 
 /// Add Roaring Bitmaps to your build process
-pub fn add(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) *std.Build.Step.Compile {
+pub fn add(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, disable_avx512: bool) *std.Build.Step.Compile {
     var lib = b.addLibrary(.{
         .name = "roaring-zig",
         .root_module = b.createModule(.{
@@ -103,7 +134,8 @@ pub fn add(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builti
         .linkage = .static,
     });
 
-    lib.addCSourceFile(.{ .file = b.path("croaring/roaring.c"), .flags = &.{} });
+    const lib_flags: []const []const u8 = if (disable_avx512) &[_][]const u8{"-DCROARING_COMPILER_SUPPORTS_AVX512=0"} else &[_][]const u8{};
+    lib.addCSourceFile(.{ .file = b.path("croaring/roaring.c"), .flags = lib_flags });
     lib.addIncludePath(b.path("croaring"));
     lib.linkLibC();
     return lib;

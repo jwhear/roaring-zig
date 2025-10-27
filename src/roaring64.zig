@@ -15,13 +15,19 @@
 /// - The iterator for 64-bit bitmaps allocates; you must call `Iterator.free()`.
 ///
 const std = @import("std");
-const roaring = @import("roaring");
 const c = @cImport({
     @cInclude("roaring.h");
 });
 
 /// Error set shared with 32-bit wrapper
-pub const RoaringError = roaring.RoaringError;
+pub const RoaringError = error{
+    ///
+    allocation_failed,
+    ///
+    frozen_view_failed,
+    ///
+    deserialize_failed,
+};
 
 /// Callback signature for 64-bit iteration (`roaring64_bitmap_iterate`)
 pub const IteratorFunction = fn (u64, ?*anyopaque) callconv(.c) bool;

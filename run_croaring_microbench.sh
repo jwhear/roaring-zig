@@ -103,12 +103,15 @@ ZIG_OUT="$TMP_DIR/zig.txt"
 "$BENCH_BIN" ${DATA_ARG:++"$DATA_ARG"} ${DEFAULT_FILTER:+"$DEFAULT_FILTER"} "$@" | tee "$CROAR_OUT"
 
 echo "[INFO] Running Zig bench"
+# Zig will automatically detect and handle AVX512 support
+FLAGS=" -Doptimize=ReleaseFast"
+
 # Prefer same dataset directory for Zig if provided
 if [[ -n "$DATA_ARG" ]]; then
-  zig build -Doptimize=ReleaseFast bench -- "$DATA_ARG" 2>&1 | tee "$ZIG_OUT"
+  zig build $FLAGS bench -- "$DATA_ARG" 2>&1 | tee "$ZIG_OUT"
 else
   # Use the same default dataset as CRoaring's bench
-  zig build -Doptimize=ReleaseFast bench -- "$CROARING_DIR/benchmarks/realdata/census1881" 2>&1 | tee "$ZIG_OUT"
+  zig build $FLAGS bench -- "$CROARING_DIR/benchmarks/realdata/census1881" 2>&1 | tee "$ZIG_OUT"
 fi
 
 echo "[INFO] Comparing results (ns per iteration)"
@@ -122,7 +125,7 @@ awk '
   END {
     for (n in c) if (n in z) printf "%s %d %d\n", n, c[n], z[n]
   }
-' "$CROAR_OUT" "$ZIG_OUT" | sort > "$TMP_DIR/joined.txt"
+' "$CROAR_OUT" "$ZIG_OUT" | sort >"$TMP_DIR/joined.txt"
 
 echo "$(printf '%-36s %12s   %12s   %8s' 'Benchmark' 'CRoaring(ns)' 'Zig(ns)' 'Zig/CR')"
 echo "$(printf '%-36s %12s   %12s   %8s' '---------' '-----------' '-------' '-----')"
